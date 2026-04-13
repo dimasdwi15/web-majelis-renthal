@@ -1,0 +1,16 @@
+/* CARD */
+.fi-wi-stats-overview-stat {
+    border-radius: 14px;
+    border: 1px solid #eee;
+}
+
+/* TABLE HEADER */
+.fi-ta thead {
+    background-color: #6b5b53;
+    color: white;
+}
+
+/* BUTTON */
+.fi-btn-warning {
+    background-color: #d6c29c !important;
+}
