@@ -68,7 +68,7 @@
                         <span
                             class="font-syne text-[9px] font-bold tracking-[0.1em] uppercase text-[#9b947c]">Tampil:</span>
                         <select
-                            class="bg-transparent border-none font-syne text-[10px] font-bold uppercase tracking-wider text-[#1b1c1a] focus:outline-none cursor-pointer"
+                            class="bg-transparent border-none font-syne text-[12px] font-bold uppercase tracking-wider text-[#1b1c1a] focus:outline-none cursor-pointer"
                             x-data
                             x-on:change="const u=new URL(window.location);u.searchParams.set('perPage',$event.target.value);u.searchParams.delete('page');window.location=u.toString()">
                             <option value="6" {{ request('perPage', '6') == '6' ? 'selected' : '' }}>6</option>

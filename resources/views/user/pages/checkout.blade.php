@@ -21,12 +21,6 @@
             Alpine.data('checkout', () => ({
 
                 // ─── STATE LOKAL ──────────────────────────────────────────────
-                // subtotalPerHari adalah property biasa (bukan getter).
-                // Nilainya dijaga sinkron dengan store.items via $effect di init().
-                // Pendekatan ini 100% reaktif di Alpine 3 karena $effect secara
-                // eksplisit mendaftarkan dependency ke Alpine.store('cart').items.
-                subtotalPerHari: 0,
-
                 tglAmbil:          '',
                 tglKembali:        '',
                 jenisIdentitas:    'KTP',
@@ -35,20 +29,21 @@
                 metodePembayaran:  'midtrans',
                 setuju:            false,
 
-                // ─── INIT ─────────────────────────────────────────────────────
-                // $effect dipanggil dalam init() sehingga Alpine meregister
-                // reactive dependency SEBELUM template pertama kali dirender.
-                // Setiap kali Alpine.store('cart').items berubah (dari hapus /
-                // update / tambah / refresh), $effect otomatis re-run dan
-                // subtotalPerHari diperbarui → template re-render.
-                init() {
-                    this.$effect(() => {
-                        this.subtotalPerHari = Object.values(Alpine.store('cart').items)
-                            .reduce((s, i) => s + i.harga * i.qty, 0);
-                    });
+                // ─── COMPUTED (getter) ────────────────────────────────────────
+                // Semua getter di bawah membaca langsung dari Alpine.store('cart')
+                // sehingga Alpine otomatis tahu dependency-nya dan re-render
+                // begitu store.items berubah — tanpa perlu $effect atau plain property.
+
+                /**
+                 * Total harga per hari dari semua item di keranjang.
+                 * Getter ini LANGSUNG membaca Alpine.store('cart').items sehingga
+                 * Alpine meregister dependency dan re-render setiap kali items berubah.
+                 */
+                get subtotalPerHari() {
+                    return Object.values(Alpine.store('cart').items)
+                        .reduce((s, i) => s + i.harga * i.qty, 0);
                 },
 
-                // ─── COMPUTED ────────────────────────────────────────────────
                 get durasi() {
                     if (!this.tglAmbil || !this.tglKembali) return 0;
                     const d = Math.round(
@@ -56,11 +51,11 @@
                     );
                     return d > 0 ? d : 0;
                 },
+
                 get totalSewa() {
                     return this.subtotalPerHari * (this.durasi || 0);
                 },
-                // bisaSubmit membaca Alpine.store('cart').count secara langsung
-                // agar cek "keranjang tidak kosong" ikut reaktif.
+
                 get bisaSubmit() {
                     return this.durasi > 0
                         && Alpine.store('cart').count > 0
@@ -70,20 +65,23 @@
                 },
 
                 // ─── MUTASI CART ──────────────────────────────────────────────
-                // Semua mutasi didelegasi ke store — satu sumber kebenaran
-                // untuk cart panel maupun halaman checkout.
                 hapusItem(id) {
                     Alpine.store('cart').hapus(id);
                 },
+
                 tambahQty(id) {
                     const item = Alpine.store('cart').items[id];
                     if (!item) return;
                     if (item.qty < item.stok) {
                         Alpine.store('cart').update(id, item.qty + 1);
                     } else {
-                        Alpine.store('toast').flash('Stok maksimal sudah tercapai.', 'error');
+                        Alpine.store('toast').flash(
+                            `Stok "${item.nama}" sudah maksimal (${item.stok} unit).`,
+                            'error'
+                        );
                     }
                 },
+
                 kurangQty(id) {
                     const item = Alpine.store('cart').items[id];
                     if (!item) return;
@@ -226,8 +224,10 @@
 
                 {{--
                     02 · INVENTARIS GEAR
-                    TIDAK ada nested x-data — semua template menggunakan
-                    $store.cart.items secara langsung agar reaktif native.
+                    Semua template membaca langsung dari $store.cart.items dan
+                    $store.cart.isEmpty — kedua referensi ini reaktif native Alpine
+                    sehingga begitu store diupdate (hapus/update qty) template langsung
+                    re-render TANPA harus membuka panel cart terlebih dahulu.
                 --}}
                 <div
                     class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
@@ -249,7 +249,7 @@
                     <!-- LIST -->
                     <div class="divide-y divide-[#f0ece0]">
 
-                        <!-- EMPTY — reaktif langsung ke $store.cart.isEmpty -->
+                        <!-- EMPTY -->
                         <template x-if="$store.cart.isEmpty">
                             <div class="py-16 text-center">
                                 <span
@@ -262,35 +262,49 @@
                             </div>
                         </template>
 
-                        <!-- ITEM — loop langsung ke $store.cart.items (bukan via getter) -->
+                        <!-- ITEM -->
                         <template x-for="(item, id) in $store.cart.items" :key="id">
                             <div class="flex items-start gap-4 px-6 py-4 hover:bg-[#faf8f2]">
 
                                 <!-- IMAGE -->
                                 <div
-                                    class="w-[68px] h-[68px] rounded-xl overflow-hidden bg-[#f5f3ed] border border-[#e0d9c8]">
+                                    class="w-[68px] h-[68px] rounded-xl overflow-hidden bg-[#f5f3ed] border border-[#e0d9c8] flex-shrink-0">
                                     <img :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'"
+                                        :alt="item.nama"
                                         class="w-full h-full object-cover">
                                 </div>
 
                                 <!-- INFO -->
-                                <div class="flex-1">
-                                    <p class="font-syne font-bold text-[14px] uppercase text-[#1b1c1a]"
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-syne font-bold text-[14px] uppercase text-[#1b1c1a] leading-tight mb-0.5"
                                         x-text="item.nama"></p>
 
                                     <p class="text-[11px] text-[#7b6f52] mb-2">
                                         <span x-text="rupiah(item.harga)"></span>/hari
+                                        <span class="text-[#c8bfa8] ml-2">·</span>
+                                        <span class="text-[#9b947c] ml-1">Stok: <span x-text="item.stok"></span></span>
                                     </p>
 
                                     <!-- QTY CONTROL -->
                                     <div class="flex items-center gap-2 mb-2">
                                         <button @click="kurangQty(id)"
-                                            class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors">-</button>
+                                            class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors flex items-center justify-center text-[#4a473d] font-bold">
+                                            <span class="material-symbols-outlined text-[14px]">remove</span>
+                                        </button>
 
-                                        <span class="font-bold text-[13px]" x-text="item.qty"></span>
+                                        <span class="font-bold text-[13px] w-6 text-center" x-text="item.qty"></span>
 
                                         <button @click="tambahQty(id)"
-                                            class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors">+</button>
+                                            class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors flex items-center justify-center text-[#4a473d] font-bold"
+                                            :class="item.qty >= item.stok ? 'opacity-40 cursor-not-allowed' : ''">
+                                            <span class="material-symbols-outlined text-[14px]">add</span>
+                                        </button>
+
+                                        <!-- Indikator stok hampir habis -->
+                                        <span x-show="item.qty >= item.stok"
+                                            class="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                            Maks
+                                        </span>
                                     </div>
 
                                     <!-- SUBTOTAL DENGAN DURASI -->
@@ -312,24 +326,27 @@
                                 <div class="flex flex-col items-end justify-between h-[68px]">
 
                                     <!-- DELETE -->
-                                    <button @click="hapusItem(id)" class="text-[#9b947c] hover:text-red-600">
+                                    <button @click="hapusItem(id)"
+                                        class="text-[#9b947c] hover:text-red-600 transition-colors"
+                                        title="Hapus item">
                                         <span class="material-symbols-outlined text-[18px]">delete</span>
                                     </button>
 
-                                    <!-- TOTAL PER ITEM -->
+                                    <!-- TOTAL PER ITEM (harga × qty / hari) -->
                                     <p class="text-[12px] font-semibold text-[#4d462e]">
                                         <span x-text="rupiah(item.qty * item.harga)"></span>
+                                        <span class="text-[#9b947c] font-normal">/hr</span>
                                     </p>
                                 </div>
                             </div>
                         </template>
                     </div>
 
-                    <!-- RATE / HARI — subtotalPerHari reaktif via $effect di init() -->
+                    <!-- RATE / HARI — membaca getter subtotalPerHari yang reaktif -->
                     <template x-if="!$store.cart.isEmpty">
                         <div
                             class="flex justify-between items-center px-6 py-3 bg-[#faf8f2] border-t border-[#e0d9c8]">
-                            <span class="text-[10px] text-[#7b6f52] uppercase">Rate / Hari</span>
+                            <span class="text-[10px] text-[#7b6f52] uppercase tracking-widest">Rate / Hari</span>
                             <span class="font-syne font-extrabold text-[16px] text-[#4d462e]"
                                 x-text="rupiah(subtotalPerHari)">
                             </span>
@@ -566,7 +583,7 @@
                         </div>
                         <div class="p-5">
                             <div class="space-y-2.5 mb-4">
-                                <!-- Sidebar item list juga pakai $store.cart.items langsung -->
+                                <!-- Per-item breakdown — reaktif langsung ke $store.cart.items -->
                                 <template x-for="(item, id) in $store.cart.items" :key="id">
                                     <div
                                         class="flex justify-between items-start gap-3 pb-2.5 border-b border-[#f0ece0]">
@@ -582,6 +599,11 @@
                                             x-text="durasi > 0 ? rupiah(item.harga * item.qty * durasi) : '—'"></span>
                                     </div>
                                 </template>
+
+                                <!-- Empty state di sidebar -->
+                                <template x-if="$store.cart.isEmpty">
+                                    <p class="text-[11px] text-[#9b947c] text-center py-2">Keranjang masih kosong</p>
+                                </template>
                             </div>
 
                             <div class="space-y-1.5 text-[12px] mb-4">
@@ -593,6 +615,12 @@
                                     <span class="text-[#7b6f52]">Deposit Jaminan</span>
                                     <span class="text-[#4a473d] font-semibold">Identitas Fisik</span>
                                 </div>
+                            </div>
+
+                            <!-- Subtotal per hari -->
+                            <div class="flex justify-between items-center text-[12px] mb-2">
+                                <span class="text-[#7b6f52]">Rate / Hari</span>
+                                <span class="font-semibold text-[#4a473d]" x-text="rupiah(subtotalPerHari)"></span>
                             </div>
 
                             <div class="h-px bg-[#e0d9c8] my-3"></div>
@@ -640,7 +668,7 @@
                             x-text="metodePembayaran === 'midtrans' ? 'Lanjut ke Pembayaran →' : 'Konfirmasi Pesanan →'"></span>
                     </button>
 
-                    {{-- Checklist — $store.cart.count langsung reaktif ke store --}}
+                    {{-- Checklist persyaratan --}}
                     <div class="bg-white border border-[#e0d9c8] rounded-2xl p-5">
                         <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#9b947c] mb-4">Persyaratan
                             Checkout</p>

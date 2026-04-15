@@ -287,8 +287,13 @@
                                           leading-tight line-clamp-2 mb-1"
                                     x-text="item.nama">
                                 </p>
-                                <p class="text-[#a8956a] text-xs font-bold mb-2.5"
+                                <p class="text-[#a8956a] text-xs font-bold mb-1"
                                     x-text="$store.cart.formatRupiah(item.harga) + '/hari'">
+                                </p>
+
+                                {{-- Info stok tersisa --}}
+                                <p class="text-[#655e44] text-[10px] mb-2"
+                                    x-text="'Stok: ' + item.stok + ' unit'">
                                 </p>
 
                                 {{-- Qty Control --}}
@@ -306,13 +311,22 @@
                                     <span class="text-[#F2E8C6] text-xs font-bold w-5 text-center" x-text="item.qty">
                                     </span>
 
+                                    {{--
+                                        FIX: Tombol tambah di cart panel sekarang memeriksa stok
+                                        dan menampilkan notifikasi informatif dengan nama barang
+                                        dan sisa stok jika sudah mencapai maksimal.
+                                    --}}
                                     <button
                                         @click="item.qty < item.stok
                                             ? $store.cart.update(id, item.qty + 1)
-                                            : Alpine.store('toast').flash('Stok maksimal tercapai.', 'error')"
+                                            : Alpine.store('toast').flash(
+                                                `Stok \"${item.nama}\" sudah maksimal (${item.stok} unit tersedia).`,
+                                                'error'
+                                              )"
                                         class="w-6 h-6 flex items-center justify-center rounded
                                                bg-[#655e44]/20 hover:bg-[#655e44] text-[#F2E8C6]
-                                               transition-colors flex-shrink-0">
+                                               transition-colors flex-shrink-0"
+                                        :class="item.qty >= item.stok ? 'opacity-40' : ''">
                                         <span class="material-symbols-outlined text-sm leading-none">add</span>
                                     </button>
 
@@ -320,6 +334,13 @@
                                     <span class="ml-auto text-[#a8956a] text-xs font-bold"
                                         x-text="$store.cart.formatRupiah(item.harga * item.qty)">
                                     </span>
+                                </div>
+
+                                {{-- Badge stok maksimal --}}
+                                <div x-show="item.qty >= item.stok"
+                                    class="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-900/30 border border-amber-700/30 px-2 py-0.5 rounded-full">
+                                    <span class="material-symbols-outlined text-[11px]">warning</span>
+                                    Stok Maksimal
                                 </div>
                             </div>
 

@@ -1,4 +1,3 @@
-
 @include('user.components.cart')
 
 <nav
@@ -23,7 +22,7 @@
 
         {{-- Desktop Menu --}}
         <div class="hidden md:flex items-center gap-x-1">
-            <a href="{{ url('/home') }}"
+            <a href="{{ url('/') }}"
                 class="px-4 py-2 text-[#F2E8C6]/80 font-semibold text-xs tracking-widest uppercase
                        hover:bg-[#655e44]/40 hover:text-[#F2E8C6] rounded-lg transition-all duration-200
                        {{ request()->is('home') ? 'bg-[#655e44]/40 text-[#F2E8C6]' : '' }}">
@@ -79,14 +78,13 @@
                 </button>
             </form>
 
-            {{-- Cart Button — membuka panel cart dari cart.blade.php --}}
+            {{-- Cart Button --}}
             <button
                 x-data
                 @click="$store.cart.open = true"
                 class="relative flex h-9 w-9 items-center justify-center text-[#F2E8C6]/70
                        hover:text-[#F2E8C6] hover:bg-[#655e44]/40 rounded-lg transition-all duration-200">
                 <span class="material-symbols-outlined text-xl">shopping_bag</span>
-                {{-- Badge count dari $store.cart (diinit di cart.blade.php) --}}
                 <span
                     x-data
                     x-show="$store.cart.count > 0"
@@ -96,6 +94,88 @@
                            leading-none shadow pointer-events-none">
                 </span>
             </button>
+
+            {{-- Notifikasi Bell — hanya untuk user yang sudah login --}}
+            @auth
+            <div x-data="{ notifOpen: false }" class="relative">
+                <button
+                    @click="notifOpen = !notifOpen"
+                    class="relative flex h-9 w-9 items-center justify-center text-[#F2E8C6]/70
+                           hover:text-[#F2E8C6] hover:bg-[#655e44]/40 rounded-lg transition-all duration-200">
+                    <span class="material-symbols-outlined text-xl">notifications</span>
+                    {{-- Badge notif belum dibaca --}}
+                    @php
+                        $unreadNotif = \App\Models\Notifikasi::where('user_id', Auth::id())
+                            ->whereNull('dibaca_pada')->count();
+                    @endphp
+                    @if($unreadNotif > 0)
+                    <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white
+                                 text-[9px] font-black rounded-full flex items-center justify-center px-1
+                                 leading-none shadow pointer-events-none animate-pulse">
+                        {{ $unreadNotif > 9 ? '9+' : $unreadNotif }}
+                    </span>
+                    @endif
+                </button>
+
+                {{-- Dropdown Notifikasi --}}
+                <div
+                    x-show="notifOpen"
+                    @click.away="notifOpen = false"
+                    x-transition:enter="transition ease-out duration-150"
+                    x-transition:enter-start="opacity-0 -translate-y-1"
+                    x-transition:enter-end="opacity-100 translate-y-0"
+                    x-transition:leave="transition ease-in duration-100"
+                    x-transition:leave-start="opacity-100 translate-y-0"
+                    x-transition:leave-end="opacity-0 -translate-y-1"
+                    class="absolute right-0 mt-2 w-80 bg-[#251D1D] rounded-lg border border-[#655e44]/30
+                           shadow-2xl z-50 overflow-hidden">
+
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-[#655e44]/20">
+                        <span class="text-[#F2E8C6] text-xs font-black uppercase tracking-widest">Notifikasi</span>
+                        <a href="{{ route('user.notifikasi.index') }}"
+                            class="text-[#a8956a] text-[10px] font-semibold uppercase tracking-wider hover:text-[#F2E8C6] transition-colors">
+                            Lihat Semua
+                        </a>
+                    </div>
+
+                    @php
+                        $notifTerbaru = \App\Models\Notifikasi::where('user_id', Auth::id())
+                            ->latest()->take(4)->get();
+                    @endphp
+
+                    @forelse($notifTerbaru as $notif)
+                    <a href="{{ route('user.notifikasi.index') }}"
+                        class="flex items-start gap-3 px-4 py-3 hover:bg-[#655e44]/20 transition-colors
+                               border-b border-[#655e44]/10 last:border-0
+                               {{ is_null($notif->dibaca_pada) ? 'bg-[#655e44]/10' : '' }}">
+                        <span class="material-symbols-outlined text-base mt-0.5 flex-shrink-0
+                                     {{ $notif->tipe === 'denda' ? 'text-red-400' : 'text-[#a8956a]' }}">
+                            {{ $notif->tipe === 'denda' ? 'warning' : 'info' }}
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[#F2E8C6] text-[11px] font-semibold leading-snug truncate">
+                                {{ $notif->judul }}
+                            </p>
+                            <p class="text-[#F2E8C6]/50 text-[10px] mt-0.5 line-clamp-2">
+                                {{ $notif->pesan }}
+                            </p>
+                            <p class="text-[#655e44] text-[9px] mt-1">
+                                {{ $notif->created_at->diffForHumans() }}
+                            </p>
+                        </div>
+                        @if(is_null($notif->dibaca_pada))
+                        <span class="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 mt-1"></span>
+                        @endif
+                    </a>
+                    @empty
+                    <div class="px-4 py-6 text-center">
+                        <span class="material-symbols-outlined text-3xl text-[#655e44]/40">notifications_off</span>
+                        <p class="text-[#F2E8C6]/30 text-xs mt-2">Belum ada notifikasi</p>
+                    </div>
+                    @endforelse
+                </div>
+            </div>
+            @endauth
 
             {{-- Account --}}
             <div x-data="{ accOpen: false }" class="relative">
@@ -115,7 +195,7 @@
                     x-transition:leave="transition ease-in duration-100"
                     x-transition:leave-start="opacity-100 translate-y-0"
                     x-transition:leave-end="opacity-0 -translate-y-1"
-                    class="absolute right-0 mt-2 w-52 bg-[#251D1D] rounded-lg border border-[#655e44]/30
+                    class="absolute right-0 mt-2 w-56 bg-[#251D1D] rounded-lg border border-[#655e44]/30
                            shadow-2xl z-50 overflow-hidden">
 
                     @guest
@@ -135,12 +215,66 @@
                     @endguest
 
                     @auth
+                        {{-- Info User --}}
                         <div class="px-4 py-3 border-b border-[#655e44]/20">
                             <p class="text-[#F2E8C6]/40 text-[9px] uppercase tracking-widest">Masuk sebagai</p>
                             <p class="text-[#F2E8C6] text-xs font-semibold truncate mt-0.5">
                                 {{ Auth::user()->name }}
                             </p>
+                            <p class="text-[#655e44]/70 text-[10px] truncate">{{ Auth::user()->email }}</p>
                         </div>
+
+                        {{-- Menu Akun --}}
+                        <a href="{{ route('user.dashboard') }}"
+                            class="flex items-center gap-3 px-4 py-2.5 text-[#F2E8C6]/80 text-xs font-semibold
+                                   uppercase tracking-wider hover:bg-[#655e44]/40 hover:text-[#F2E8C6] transition-all
+                                   {{ request()->routeIs('user.dashboard') ? 'bg-[#655e44]/30 text-[#F2E8C6]' : '' }}">
+                            <span class="material-symbols-outlined text-base">dashboard</span>
+                            Dashboard
+                        </a>
+
+                        <a href="{{ route('user.pesanan.index') }}"
+                            class="flex items-center gap-3 px-4 py-2.5 text-[#F2E8C6]/80 text-xs font-semibold
+                                   uppercase tracking-wider hover:bg-[#655e44]/40 hover:text-[#F2E8C6] transition-all
+                                   {{ request()->routeIs('user.pesanan.*') ? 'bg-[#655e44]/30 text-[#F2E8C6]' : '' }}">
+                            <span class="material-symbols-outlined text-base">receipt_long</span>
+                            Pesanan Saya
+                            @php
+                                $pesananMenunggu = \App\Models\Transaksi::where('user_id', Auth::id())
+                                    ->where('status', 'menunggu_pembayaran')->count();
+                            @endphp
+                            @if($pesananMenunggu > 0)
+                            <span class="ml-auto bg-[#a8956a] text-[#251D1D] text-[9px] font-black
+                                         rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                                {{ $pesananMenunggu }}
+                            </span>
+                            @endif
+                        </a>
+
+                        <a href="{{ route('user.notifikasi.index') }}"
+                            class="flex items-center gap-3 px-4 py-2.5 text-[#F2E8C6]/80 text-xs font-semibold
+                                   uppercase tracking-wider hover:bg-[#655e44]/40 hover:text-[#F2E8C6] transition-all
+                                   {{ request()->routeIs('user.notifikasi.*') ? 'bg-[#655e44]/30 text-[#F2E8C6]' : '' }}">
+                            <span class="material-symbols-outlined text-base">notifications</span>
+                            Notifikasi
+                            @if(isset($unreadNotif) && $unreadNotif > 0)
+                            <span class="ml-auto bg-red-500 text-white text-[9px] font-black
+                                         rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                                {{ $unreadNotif }}
+                            </span>
+                            @endif
+                        </a>
+
+                        <a href="{{ route('user.profil.edit') }}"
+                            class="flex items-center gap-3 px-4 py-2.5 text-[#F2E8C6]/80 text-xs font-semibold
+                                   uppercase tracking-wider hover:bg-[#655e44]/40 hover:text-[#F2E8C6] transition-all
+                                   border-b border-[#655e44]/20
+                                   {{ request()->routeIs('user.profil.*') ? 'bg-[#655e44]/30 text-[#F2E8C6]' : '' }}">
+                            <span class="material-symbols-outlined text-base">manage_accounts</span>
+                            Edit Profil
+                        </a>
+
+                        {{-- Logout --}}
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
                             <button type="submit"
@@ -207,7 +341,8 @@
             </form>
         </div>
 
-        <nav class="px-4 pb-4 space-y-1 mt-1">
+        {{-- Mobile Nav Links --}}
+        <nav class="px-4 pb-2 space-y-1 mt-1">
             <a href="{{ url('/home') }}" @click="mobileOpen = false"
                 class="flex items-center gap-3 px-4 py-3 text-[#F2E8C6]/80 text-xs font-semibold
                        uppercase tracking-widest hover:bg-[#655e44]/40 hover:text-[#F2E8C6]
@@ -233,6 +368,51 @@
                 Tentang Kami
             </a>
         </nav>
+
+        {{-- Mobile Akun Section (hanya jika sudah login) --}}
+        @auth
+        <div class="px-4 pb-4 mt-1 border-t border-[#655e44]/20 pt-3">
+            <p class="text-[#655e44]/60 text-[9px] uppercase tracking-widest px-4 mb-1">Akun Saya</p>
+            <a href="{{ route('user.dashboard') }}" @click="mobileOpen = false"
+                class="flex items-center gap-3 px-4 py-3 text-[#F2E8C6]/80 text-xs font-semibold
+                       uppercase tracking-widest hover:bg-[#655e44]/40 hover:text-[#F2E8C6]
+                       rounded-lg transition-colors
+                       {{ request()->routeIs('user.dashboard') ? 'bg-[#655e44]/40 text-[#F2E8C6]' : '' }}">
+                <span class="material-symbols-outlined text-base">dashboard</span>
+                Dashboard
+            </a>
+            <a href="{{ route('user.pesanan.index') }}" @click="mobileOpen = false"
+                class="flex items-center gap-3 px-4 py-3 text-[#F2E8C6]/80 text-xs font-semibold
+                       uppercase tracking-widest hover:bg-[#655e44]/40 hover:text-[#F2E8C6]
+                       rounded-lg transition-colors
+                       {{ request()->routeIs('user.pesanan.*') ? 'bg-[#655e44]/40 text-[#F2E8C6]' : '' }}">
+                <span class="material-symbols-outlined text-base">receipt_long</span>
+                Pesanan Saya
+            </a>
+            <a href="{{ route('user.notifikasi.index') }}" @click="mobileOpen = false"
+                class="flex items-center gap-3 px-4 py-3 text-[#F2E8C6]/80 text-xs font-semibold
+                       uppercase tracking-widest hover:bg-[#655e44]/40 hover:text-[#F2E8C6]
+                       rounded-lg transition-colors
+                       {{ request()->routeIs('user.notifikasi.*') ? 'bg-[#655e44]/40 text-[#F2E8C6]' : '' }}">
+                <span class="material-symbols-outlined text-base">notifications</span>
+                Notifikasi
+                @if(isset($unreadNotif) && $unreadNotif > 0)
+                <span class="ml-auto bg-red-500 text-white text-[9px] font-black
+                             rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                    {{ $unreadNotif }}
+                </span>
+                @endif
+            </a>
+            <a href="{{ route('user.profil.edit') }}" @click="mobileOpen = false"
+                class="flex items-center gap-3 px-4 py-3 text-[#F2E8C6]/80 text-xs font-semibold
+                       uppercase tracking-widest hover:bg-[#655e44]/40 hover:text-[#F2E8C6]
+                       rounded-lg transition-colors
+                       {{ request()->routeIs('user.profil.*') ? 'bg-[#655e44]/40 text-[#F2E8C6]' : '' }}">
+                <span class="material-symbols-outlined text-base">manage_accounts</span>
+                Edit Profil
+            </a>
+        </div>
+        @endauth
     </div>
 </nav>
 
