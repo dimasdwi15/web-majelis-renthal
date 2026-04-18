@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\KatalogController;
 use App\Http\Controllers\KeranjangController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\MidtransCallbackController;
 
 use App\Http\Controllers\User\DashboardController;
 use App\Http\Controllers\User\PesananController;
@@ -79,6 +80,16 @@ Route::middleware(['auth'])->prefix('akun')->name('user.')->group(function () {
 });
 
 Route::get('/pesanan/{transaksi}/struk', [PesananController::class, 'struk'])
-     ->name('user.pesanan.struk');
+    ->name('user.pesanan.struk');
+
+// Midtrans webhook callback (no CSRF needed — excluded in bootstrap/app.php)
+Route::post('/midtrans/callback', [MidtransCallbackController::class, 'handle'])
+    ->name('midtrans.callback');
+
+Route::post('/pesanan/{transaksi}/bayar-ulang', [PesananController::class, 'bayarUlang'])
+    ->middleware('auth')
+    ->name('user.pesanan.bayar-ulang');
+
+Route::post('/bayar-denda/{denda}', [PesananController::class, 'bayarDendaLangsung']);
 
 require __DIR__ . '/auth.php';

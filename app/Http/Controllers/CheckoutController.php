@@ -11,17 +11,17 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Midtrans\Config;
+use Midtrans\Snap;
 
 class CheckoutController extends Controller
 {
     /**
      * Sinkronisasi data cart di session dengan data terbaru dari database.
-     * Logika identik dengan KeranjangController::refreshCartSession().
-     * Dijalankan sebelum halaman checkout dirender agar semua data akurat.
-     *
-     * @return array  Cart yang sudah di-refresh
      */
+
     private function refreshCartSession(): array
     {
         $cart = session('cart', []);
@@ -60,8 +60,6 @@ class CheckoutController extends Controller
 
     /**
      * Tampilkan halaman checkout.
-     * Refresh data cart dari DB terlebih dahulu agar harga/stok akurat.
-     * Redirect ke katalog jika keranjang kosong (termasuk setelah refresh).
      */
     public function index()
     {
@@ -77,11 +75,23 @@ class CheckoutController extends Controller
 
     /**
      * Proses submit checkout.
+     *
+     * Untuk metode MIDTRANS:
+     *   - Request dikirim via AJAX (fetch API)
+     *   - Response: JSON { snap_token, redirect_url }
+     *   - Frontend membuka popup Midtrans Snap
+     *
+     * Untuk metode TUNAI (COD):
+     *   - Request dikirim via form POST biasa
+     *   - Response: redirect ke halaman sukses
      */
     public function proses(Request $request)
     {
+        // Deteksi apakah request AJAX (untuk Midtrans)
+        $isAjax = $request->expectsJson() || $request->ajax();
+
         // ── Validasi input ──────────────────────────────────────────────
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'tanggal_ambil'     => ['required', 'date', 'after_or_equal:today'],
             'tanggal_kembali'   => ['required', 'date', 'after:tanggal_ambil'],
             'metode_pembayaran' => ['required', 'in:midtrans,tunai'],
@@ -95,12 +105,23 @@ class CheckoutController extends Controller
             'foto_identitas.max'            => 'Ukuran foto maksimal 5MB.',
         ]);
 
-        // Gunakan data cart yang sudah di-refresh (harga terbaru dari DB)
+        if ($validator->fails()) {
+            if ($isAjax) {
+                return response()->json([
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+            return back()->withErrors($validator)->withInput();
+        }
+
+        // Refresh cart dari DB (harga & stok terbaru)
         $cart = $this->refreshCartSession();
 
         if (empty($cart)) {
-            return redirect()->route('katalog')
-                ->with('error', 'Keranjang kosong.');
+            if ($isAjax) {
+                return response()->json(['message' => 'Keranjang kosong.'], 422);
+            }
+            return redirect()->route('katalog')->with('error', 'Keranjang kosong.');
         }
 
         $tglAmbil   = Carbon::parse($request->tanggal_ambil);
@@ -115,15 +136,19 @@ class CheckoutController extends Controller
             $barang = Barang::find($barangId);
 
             if (!$barang || $barang->status !== 'aktif') {
-                return back()->with('error', "Barang \"{$item['nama']}\" tidak tersedia.");
+                $msg = "Barang \"{$item['nama']}\" tidak tersedia.";
+                if ($isAjax) return response()->json(['message' => $msg], 422);
+                return back()->with('error', $msg);
             }
 
             if ($request->metode_pembayaran === 'midtrans' && $barang->stok < $item['qty']) {
-                return back()->with('error', "Stok \"{$barang->nama}\" tidak mencukupi (tersisa {$barang->stok}).");
+                $msg = "Stok \"{$barang->nama}\" tidak mencukupi (tersisa {$barang->stok}).";
+                if ($isAjax) return response()->json(['message' => $msg], 422);
+                return back()->with('error', $msg);
             }
 
-            $subtotal    = $barang->harga_per_hari * $item['qty'] * $durasi;
-            $totalSewa  += $subtotal;
+            $subtotal   = $barang->harga_per_hari * $item['qty'] * $durasi;
+            $totalSewa += $subtotal;
 
             $itemsValid[$barangId] = [
                 'barang'         => $barang,
@@ -150,6 +175,8 @@ class CheckoutController extends Controller
                 'total_charge'      => 0,
                 'tanggal_ambil'     => $tglAmbil->toDateString(),
                 'tanggal_kembali'   => $tglKembali->toDateString(),
+                // batas_pembayaran diisi jika kolom ada di DB
+                // 'batas_pembayaran'  => now()->addHours(24),
             ]);
 
             foreach ($itemsValid as $barangId => $detail) {
@@ -162,11 +189,14 @@ class CheckoutController extends Controller
                     'subtotal'       => $detail['subtotal'],
                 ]);
 
+                // Stok langsung dikurangi untuk Midtrans (reserve stok).
+                // Untuk COD, stok dikurangi saat admin konfirmasi bayar.
                 if ($request->metode_pembayaran === 'midtrans') {
                     $detail['barang']->decrement('stok', $detail['qty']);
                 }
             }
 
+            // Simpan foto identitas
             $pathFoto = $request->file('foto_identitas')
                 ->store('jaminan', 'public');
 
@@ -178,7 +208,8 @@ class CheckoutController extends Controller
                 'status'          => 'aktif',
             ]);
 
-            Pembayaran::create([
+            // Buat record pembayaran utama
+            $pembayaran = Pembayaran::create([
                 'transaksi_id' => $transaksi->id,
                 'jenis'        => 'utama',
                 'jumlah'       => $totalSewa,
@@ -186,21 +217,91 @@ class CheckoutController extends Controller
                 'status'       => 'menunggu',
             ]);
 
+            // ── MIDTRANS: Generate Snap Token ───────────────────────────
+            $snapToken = null;
+
+            if ($request->metode_pembayaran === 'midtrans') {
+                Config::$serverKey    = config('midtrans.server_key');
+                Config::$isProduction = config('midtrans.is_production');
+                Config::$isSanitized  = true;
+                Config::$is3ds        = true;
+
+                // Build item details untuk Midtrans
+                $itemDetails = [];
+                foreach ($itemsValid as $barangId => $detail) {
+                    $itemDetails[] = [
+                        'id'       => (string) $barangId,
+                        'price'    => (int) round($detail['harga_per_hari'] * $durasi),
+                        'quantity' => $detail['qty'],
+                        'name'     => mb_substr($detail['barang']->nama, 0, 50),
+                    ];
+                }
+
+                $params = [
+                    'transaction_details' => [
+                        'order_id'     => $nomorTransaksi,
+                        'gross_amount' => (int) $totalSewa,
+                    ],
+                    'customer_details' => [
+                        'first_name' => Auth::user()->name,
+                        'email'      => Auth::user()->email,
+                        'phone'      => Auth::user()->phone ?? '',
+                    ],
+                    'item_details' => $itemDetails,
+                    // Snap otomatis expired setelah 24 jam
+                    'expiry' => [
+                        'start_time' => now()->format('Y-m-d H:i:s O'),
+                        'unit'       => 'hours',
+                        'duration'   => 24,
+                    ],
+                ];
+
+                $snapToken = Snap::getSnapToken($params);
+
+                // Simpan snap token ke kolom referensi_midtrans
+                $pembayaran->update(['referensi_midtrans' => $nomorTransaksi]);
+            }
+
+            // Kirim notifikasi ke admin
+            $metodeLabel = $request->metode_pembayaran === 'midtrans'
+                ? 'Cashless (Midtrans)'
+                : 'Tunai (COD)';
+
+            app(\App\Services\NotifikasiService::class)->notifTransaksiBaru(
+                nomorTransaksi: $nomorTransaksi,
+                namaUser: Auth::user()->name,
+                transaksiId: $transaksi->id,
+                metode: $metodeLabel
+            );
+
             DB::commit();
 
             session()->forget('cart');
 
+            // ── Response ────────────────────────────────────────────────
             if ($request->metode_pembayaran === 'midtrans') {
-                return redirect()->route('checkout.sukses', $transaksi->nomor_transaksi)
-                    ->with('metode', 'midtrans');
-            } else {
-                return redirect()->route('checkout.sukses', $transaksi->nomor_transaksi)
-                    ->with('metode', 'tunai');
+                // Selalu kembalikan JSON — request dari AJAX di checkout.blade.php
+                return response()->json([
+                    'snap_token'      => $snapToken,
+                    'redirect_url'    => route('checkout.sukses', $transaksi->nomor_transaksi),
+                    'nomor_transaksi' => $transaksi->nomor_transaksi,
+                ]);
             }
+
+            // COD → redirect biasa
+            return redirect()->route('checkout.sukses', $transaksi->nomor_transaksi)
+                ->with('metode', 'tunai');
+
         } catch (\Exception $e) {
             DB::rollBack();
 
-            return back()->with('error', 'Terjadi kesalahan sistem. Silakan coba lagi. (' . $e->getMessage() . ')');
+            $msg = 'Terjadi kesalahan sistem. Silakan coba lagi. (' . $e->getMessage() . ')';
+
+            if ($isAjax) {
+                return response()->json(['message' => $msg], 500);
+            }
+
+            return back()->with('error', $msg);
         }
     }
 

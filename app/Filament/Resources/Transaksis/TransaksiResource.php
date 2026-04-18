@@ -15,14 +15,17 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Contracts\Support\Htmlable;
 
 class TransaksiResource extends Resource
 {
     protected static ?string $model = Transaksi::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
+    
     protected static ?string $recordTitleAttribute = 'nomor_transaksi';
+
+    protected static string|Htmlable|null $navigationBadgeTooltip = 'Transaksi menunggu';
 
     public static function form(Schema $schema): Schema
     {
@@ -45,9 +48,23 @@ class TransaksiResource extends Resource
         return parent::getEloquentQuery()
             ->with([
                 'user',
-                'detail.barang.foto',
-                'jaminan',
+                'details.barang.foto',
+                'jaminanIdentitas',
+                'denda.foto',
+                'pembayaran',
             ]);
+    }
+
+    // Navigation badge: jumlah transaksi menunggu
+    public static function getNavigationBadge(): ?string
+    {
+        $count = Transaksi::where('status', 'menunggu_pembayaran')->count();
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): string|array|null
+    {
+        return 'warning';
     }
 
     public static function getPages(): array

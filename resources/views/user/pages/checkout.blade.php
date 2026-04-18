@@ -16,120 +16,25 @@
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
         rel="stylesheet" />
 
-    <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('checkout', () => ({
-
-                // ─── STATE LOKAL ──────────────────────────────────────────────
-                tglAmbil:          '',
-                tglKembali:        '',
-                jenisIdentitas:    'KTP',
-                fotoPreview:       null,
-                fotoFile:          null,
-                metodePembayaran:  'midtrans',
-                setuju:            false,
-
-                // ─── COMPUTED (getter) ────────────────────────────────────────
-                // Semua getter di bawah membaca langsung dari Alpine.store('cart')
-                // sehingga Alpine otomatis tahu dependency-nya dan re-render
-                // begitu store.items berubah — tanpa perlu $effect atau plain property.
-
-                /**
-                 * Total harga per hari dari semua item di keranjang.
-                 * Getter ini LANGSUNG membaca Alpine.store('cart').items sehingga
-                 * Alpine meregister dependency dan re-render setiap kali items berubah.
-                 */
-                get subtotalPerHari() {
-                    return Object.values(Alpine.store('cart').items)
-                        .reduce((s, i) => s + i.harga * i.qty, 0);
-                },
-
-                get durasi() {
-                    if (!this.tglAmbil || !this.tglKembali) return 0;
-                    const d = Math.round(
-                        (new Date(this.tglKembali) - new Date(this.tglAmbil)) / 86400000
-                    );
-                    return d > 0 ? d : 0;
-                },
-
-                get totalSewa() {
-                    return this.subtotalPerHari * (this.durasi || 0);
-                },
-
-                get bisaSubmit() {
-                    return this.durasi > 0
-                        && Alpine.store('cart').count > 0
-                        && this.jenisIdentitas !== ''
-                        && this.fotoFile !== null
-                        && this.setuju;
-                },
-
-                // ─── MUTASI CART ──────────────────────────────────────────────
-                hapusItem(id) {
-                    Alpine.store('cart').hapus(id);
-                },
-
-                tambahQty(id) {
-                    const item = Alpine.store('cart').items[id];
-                    if (!item) return;
-                    if (item.qty < item.stok) {
-                        Alpine.store('cart').update(id, item.qty + 1);
-                    } else {
-                        Alpine.store('toast').flash(
-                            `Stok "${item.nama}" sudah maksimal (${item.stok} unit).`,
-                            'error'
-                        );
-                    }
-                },
-
-                kurangQty(id) {
-                    const item = Alpine.store('cart').items[id];
-                    if (!item) return;
-                    if (item.qty > 1) {
-                        Alpine.store('cart').update(id, item.qty - 1);
-                    } else {
-                        Alpine.store('cart').hapus(id);
-                    }
-                },
-
-                // ─── FOTO IDENTITAS ───────────────────────────────────────────
-                handleFoto(e) {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    this.fotoFile = file;
-                    const r = new FileReader();
-                    r.onload = ev => { this.fotoPreview = ev.target.result; };
-                    r.readAsDataURL(file);
-                },
-
-                // ─── HELPERS ─────────────────────────────────────────────────
-                rupiah(n) {
-                    return 'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(n);
-                },
-                today() {
-                    return new Date().toISOString().split('T')[0];
-                },
-                syncHidden() {
-                    document.getElementById('input_tgl_ambil').value   = this.tglAmbil;
-                    document.getElementById('input_tgl_kembali').value = this.tglKembali;
-                    document.getElementById('input_metode').value      = this.metodePembayaran;
-                    document.getElementById('input_jenis_id').value    = this.jenisIdentitas;
-                    document.getElementById('input_durasi').value      = this.durasi;
-                },
-                submitForm() {
-                    if (!this.bisaSubmit) return;
-                    this.syncHidden();
-                    document.getElementById('form-checkout').submit();
-                },
-            }));
-        });
-    </script>
+    {{--
+        Midtrans Snap.js
+        - Sandbox : https://app.sandbox.midtrans.com/snap/snap.js
+        - Production: https://app.midtrans.com/snap/snap.js
+        data-client-key wajib diisi dari config midtrans.
+    --}}
+    @if(config('midtrans.is_production'))
+        <script src="https://app.midtrans.com/snap/snap.js"
+                data-client-key="{{ config('midtrans.client_key') }}"></script>
+    @else
+        <script src="https://app.sandbox.midtrans.com/snap/snap.js"
+                data-client-key="{{ config('midtrans.client_key') }}"></script>
+    @endif
 </head>
 
 <body class="bg-[#f5f3ed] text-[#1b1c1a] antialiased">
     @include('user.components.navbar')
 
-    <div x-data="checkout" class="max-w-screen-xl mx-auto px-4 md:px-8 py-12">
+    <div x-data="checkout" x-init="init()" class="max-w-screen-xl mx-auto px-4 md:px-8 py-12">
 
         {{-- PAGE HEADER --}}
         <div class="mb-12">
@@ -222,17 +127,10 @@
                     </div>
                 </div>
 
-                {{--
-                    02 · INVENTARIS GEAR
-                    Semua template membaca langsung dari $store.cart.items dan
-                    $store.cart.isEmpty — kedua referensi ini reaktif native Alpine
-                    sehingga begitu store diupdate (hapus/update qty) template langsung
-                    re-render TANPA harus membuka panel cart terlebih dahulu.
-                --}}
+                {{-- 02 · INVENTARIS GEAR --}}
                 <div
                     class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
 
-                    <!-- HEADER -->
                     <div
                         class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
                         <div class="flex items-center gap-3">
@@ -246,10 +144,7 @@
                         </a>
                     </div>
 
-                    <!-- LIST -->
                     <div class="divide-y divide-[#f0ece0]">
-
-                        <!-- EMPTY -->
                         <template x-if="$store.cart.isEmpty">
                             <div class="py-16 text-center">
                                 <span
@@ -262,77 +157,52 @@
                             </div>
                         </template>
 
-                        <!-- ITEM -->
                         <template x-for="(item, id) in $store.cart.items" :key="id">
                             <div class="flex items-start gap-4 px-6 py-4 hover:bg-[#faf8f2]">
-
-                                <!-- IMAGE -->
                                 <div
                                     class="w-[68px] h-[68px] rounded-xl overflow-hidden bg-[#f5f3ed] border border-[#e0d9c8] flex-shrink-0">
                                     <img :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'"
-                                        :alt="item.nama"
-                                        class="w-full h-full object-cover">
+                                        :alt="item.nama" class="w-full h-full object-cover">
                                 </div>
-
-                                <!-- INFO -->
                                 <div class="flex-1 min-w-0">
                                     <p class="font-syne font-bold text-[14px] uppercase text-[#1b1c1a] leading-tight mb-0.5"
                                         x-text="item.nama"></p>
-
                                     <p class="text-[11px] text-[#7b6f52] mb-2">
                                         <span x-text="rupiah(item.harga)"></span>/hari
                                         <span class="text-[#c8bfa8] ml-2">·</span>
                                         <span class="text-[#9b947c] ml-1">Stok: <span x-text="item.stok"></span></span>
                                     </p>
-
-                                    <!-- QTY CONTROL -->
                                     <div class="flex items-center gap-2 mb-2">
                                         <button @click="kurangQty(id)"
                                             class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors flex items-center justify-center text-[#4a473d] font-bold">
                                             <span class="material-symbols-outlined text-[14px]">remove</span>
                                         </button>
-
                                         <span class="font-bold text-[13px] w-6 text-center" x-text="item.qty"></span>
-
                                         <button @click="tambahQty(id)"
                                             class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors flex items-center justify-center text-[#4a473d] font-bold"
                                             :class="item.qty >= item.stok ? 'opacity-40 cursor-not-allowed' : ''">
                                             <span class="material-symbols-outlined text-[14px]">add</span>
                                         </button>
-
-                                        <!-- Indikator stok hampir habis -->
                                         <span x-show="item.qty >= item.stok"
                                             class="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
                                             Maks
                                         </span>
                                     </div>
-
-                                    <!-- SUBTOTAL DENGAN DURASI -->
                                     <template x-if="durasi > 0">
                                         <p class="text-[12px] font-semibold text-[#4d462e]">
                                             Subtotal:
                                             <span x-text="rupiah(item.harga * item.qty * durasi)"></span>
                                         </p>
                                     </template>
-
                                     <template x-if="durasi === 0">
-                                        <p class="text-[11px] text-[#9b947c]">
-                                            Pilih durasi untuk lihat subtotal
-                                        </p>
+                                        <p class="text-[11px] text-[#9b947c]">Pilih durasi untuk lihat subtotal</p>
                                     </template>
                                 </div>
-
-                                <!-- RIGHT PANEL -->
                                 <div class="flex flex-col items-end justify-between h-[68px]">
-
-                                    <!-- DELETE -->
                                     <button @click="hapusItem(id)"
-                                        class="text-[#9b947c] hover:text-red-600 transition-colors"
-                                        title="Hapus item">
+                                        class="text-[#9b947c] hover:text-red-600 transition-colors" title="Hapus item">
                                         <span class="material-symbols-outlined text-[18px]">delete</span>
                                     </button>
-
-                                    <!-- TOTAL PER ITEM (harga × qty / hari) -->
                                     <p class="text-[12px] font-semibold text-[#4d462e]">
                                         <span x-text="rupiah(item.qty * item.harga)"></span>
                                         <span class="text-[#9b947c] font-normal">/hr</span>
@@ -342,7 +212,6 @@
                         </template>
                     </div>
 
-                    <!-- RATE / HARI — membaca getter subtotalPerHari yang reaktif -->
                     <template x-if="!$store.cart.isEmpty">
                         <div
                             class="flex justify-between items-center px-6 py-3 bg-[#faf8f2] border-t border-[#e0d9c8]">
@@ -384,12 +253,10 @@
                                             class="sr-only">
                                         <div class="flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
                                             :class="jenisIdentitas === '{{ $opt['val'] }}'
-                                                ?
-                                                'border-[#4d462e] bg-[#4d462e]/5 shadow-[0_0_0_3px_rgba(77,70,46,0.08)]' :
-                                                'border-[#e0d9c8] hover:border-[#c8bfa8]'">
+                                                ? 'border-[#4d462e] bg-[#4d462e]/5 shadow-[0_0_0_3px_rgba(77,70,46,0.08)]'
+                                                : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
                                             <div class="w-11 h-11 rounded-xl flex items-center justify-center transition-colors"
-                                                :class="jenisIdentitas === '{{ $opt['val'] }}' ? 'bg-[#4d462e]/10' :
-                                                    'bg-[#f5f3ed]'">
+                                                :class="jenisIdentitas === '{{ $opt['val'] }}' ? 'bg-[#4d462e]/10' : 'bg-[#f5f3ed]'">
                                                 <span
                                                     class="material-symbols-outlined text-[20px] text-[#4d462e]">{{ $opt['icon'] }}</span>
                                             </div>
@@ -446,9 +313,8 @@
                             <input type="radio" x-model="metodePembayaran" value="midtrans" class="sr-only">
                             <div class="p-5 border-2 rounded-2xl transition-all duration-200 h-full hover:-translate-y-0.5"
                                 :class="metodePembayaran === 'midtrans'
-                                    ?
-                                    'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]' :
-                                    'border-[#e0d9c8] hover:border-[#c8bfa8]'">
+                                    ? 'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]'
+                                    : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
                                 <div class="flex items-start justify-between mb-4">
                                     <div class="flex items-center gap-3">
                                         <div
@@ -467,7 +333,7 @@
                                 </div>
                                 <p class="text-[11px] text-[#7b6f52] leading-relaxed mb-3">
                                     Transfer bank, QRIS, e-wallet via <strong class="text-[#4a473d]">Midtrans</strong>.
-                                    Stok dikonfirmasi otomatis setelah pembayaran lunas.
+                                    Popup pembayaran muncul langsung setelah checkout.
                                 </p>
                                 <div class="flex flex-wrap gap-1.5">
                                     @foreach (['BCA', 'BNI', 'BRI', 'QRIS', 'GoPay', 'OVO'] as $m)
@@ -483,9 +349,8 @@
                             <input type="radio" x-model="metodePembayaran" value="tunai" class="sr-only">
                             <div class="p-5 border-2 rounded-2xl transition-all duration-200 h-full hover:-translate-y-0.5"
                                 :class="metodePembayaran === 'tunai'
-                                    ?
-                                    'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]' :
-                                    'border-[#e0d9c8] hover:border-[#c8bfa8]'">
+                                    ? 'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]'
+                                    : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
                                 <div class="flex items-start justify-between mb-4">
                                     <div class="flex items-center gap-3">
                                         <div
@@ -583,7 +448,6 @@
                         </div>
                         <div class="p-5">
                             <div class="space-y-2.5 mb-4">
-                                <!-- Per-item breakdown — reaktif langsung ke $store.cart.items -->
                                 <template x-for="(item, id) in $store.cart.items" :key="id">
                                     <div
                                         class="flex justify-between items-start gap-3 pb-2.5 border-b border-[#f0ece0]">
@@ -599,8 +463,6 @@
                                             x-text="durasi > 0 ? rupiah(item.harga * item.qty * durasi) : '—'"></span>
                                     </div>
                                 </template>
-
-                                <!-- Empty state di sidebar -->
                                 <template x-if="$store.cart.isEmpty">
                                     <p class="text-[11px] text-[#9b947c] text-center py-2">Keranjang masih kosong</p>
                                 </template>
@@ -617,7 +479,6 @@
                                 </div>
                             </div>
 
-                            <!-- Subtotal per hari -->
                             <div class="flex justify-between items-center text-[12px] mb-2">
                                 <span class="text-[#7b6f52]">Rate / Hari</span>
                                 <span class="font-semibold text-[#4a473d]" x-text="rupiah(subtotalPerHari)"></span>
@@ -644,7 +505,7 @@
                         </div>
                     </div>
 
-                    {{-- Form hidden --}}
+                    {{-- Form hidden — diisi via syncHidden() sebelum submit --}}
                     <form id="form-checkout" action="{{ route('checkout.proses') }}" method="POST"
                         enctype="multipart/form-data">
                         @csrf
@@ -657,15 +518,40 @@
                             class="sr-only" x-on:change="handleFoto($event)">
                     </form>
 
-                    {{-- Submit --}}
-                    <button type="button" x-on:click="submitForm()" :disabled="!bisaSubmit"
+                    {{-- Error dari server (AJAX) --}}
+                    <div x-show="submitError" x-cloak
+                        class="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+                        <span class="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0 mt-0.5">error</span>
+                        <p class="text-[12px] text-red-600 leading-relaxed" x-text="submitError"></p>
+                    </div>
+
+                    {{-- ══ TOMBOL SUBMIT ══
+                        - Untuk COD      : submit form biasa (sinkron)
+                        - Untuk Midtrans : AJAX fetch → snap_token → window.snap.pay()
+                    --}}
+                    <button type="button" x-on:click="submitForm()"
+                        :disabled="!bisaSubmit || loading"
                         class="w-full py-4 rounded-2xl font-syne font-extrabold text-[12px] tracking-[0.15em] uppercase border-0 transition-all duration-300"
-                        :class="bisaSubmit
-                            ?
-                            'bg-gradient-to-r from-[#2e2a1e] to-[#4d462e] text-[#F2E8C6] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#4d462e]/30 cursor-pointer' :
-                            'bg-[#e0d9c8] text-[#9b947c] cursor-not-allowed'">
-                        <span
-                            x-text="metodePembayaran === 'midtrans' ? 'Lanjut ke Pembayaran →' : 'Konfirmasi Pesanan →'"></span>
+                        :class="bisaSubmit && !loading
+                            ? 'bg-gradient-to-r from-[#2e2a1e] to-[#4d462e] text-[#F2E8C6] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#4d462e]/30 cursor-pointer'
+                            : 'bg-[#e0d9c8] text-[#9b947c] cursor-not-allowed'">
+
+                        {{-- State: Loading --}}
+                        <span x-show="loading" class="flex items-center justify-center gap-2">
+                            <svg class="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                    stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                </path>
+                            </svg>
+                            Memproses...
+                        </span>
+
+                        {{-- State: Normal --}}
+                        <span x-show="!loading"
+                            x-text="metodePembayaran === 'midtrans' ? 'Lanjut ke Pembayaran →' : 'Konfirmasi Pesanan →'">
+                        </span>
                     </button>
 
                     {{-- Checklist persyaratan --}}
@@ -675,11 +561,11 @@
                         <div class="space-y-2.5">
                             <template
                                 x-for="item in [
-                                { label: 'Durasi sewa dipilih',     done: durasi > 0 },
-                                { label: 'Keranjang tidak kosong',  done: $store.cart.count > 0 },
-                                { label: 'Foto identitas diupload', done: fotoFile !== null },
-                                { label: 'Perjanjian disetujui',    done: setuju },
-                            ]"
+                                    { label: 'Durasi sewa dipilih',     done: durasi > 0 },
+                                    { label: 'Keranjang tidak kosong',  done: $store.cart.count > 0 },
+                                    { label: 'Foto identitas diupload', done: fotoFile !== null },
+                                    { label: 'Perjanjian disetujui',    done: setuju },
+                                ]"
                                 :key="item.label">
                                 <div class="flex items-center gap-2.5 text-[11px] font-medium transition-colors duration-200"
                                     :class="item.done ? 'text-green-700' : 'text-[#9b947c]'">
@@ -707,5 +593,213 @@
 
     @include('user.components.footer')
 </body>
+
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('checkout', () => ({
+
+            // ── State ────────────────────────────────────────────────────
+            tglAmbil: '',
+            tglKembali: '',
+            jenisIdentitas: 'KTP',
+            fotoPreview: null,
+            fotoFile: null,
+            metodePembayaran: 'midtrans',
+            setuju: false,
+
+            // State untuk AJAX Midtrans
+            loading: false,
+            submitError: null,
+
+            // ── Init ─────────────────────────────────────────────────────
+            async init() {
+                await Alpine.store('cart').refresh();
+            },
+
+            // ── Computed ─────────────────────────────────────────────────
+            get subtotalPerHari() {
+                return Object.values(Alpine.store('cart').items)
+                    .reduce((s, i) => s + i.harga * i.qty, 0);
+            },
+
+            get durasi() {
+                if (!this.tglAmbil || !this.tglKembali) return 0;
+                const d = Math.round(
+                    (new Date(this.tglKembali) - new Date(this.tglAmbil)) / 86400000
+                );
+                return d > 0 ? d : 0;
+            },
+
+            get totalSewa() {
+                return this.subtotalPerHari * (this.durasi || 0);
+            },
+
+            get bisaSubmit() {
+                return this.durasi > 0 &&
+                    Alpine.store('cart').count > 0 &&
+                    this.jenisIdentitas !== '' &&
+                    this.fotoFile !== null &&
+                    this.setuju;
+            },
+
+            // ── Mutasi Cart ──────────────────────────────────────────────
+            hapusItem(id) {
+                Alpine.store('cart').hapus(id);
+                this.autoRefresh();
+            },
+
+            tambahQty(id) {
+                const item = Alpine.store('cart').items[id];
+                if (!item) return;
+                if (item.qty < item.stok) {
+                    Alpine.store('cart').update(id, item.qty + 1);
+                    this.autoRefresh();
+                } else {
+                    Alpine.store('toast').flash(
+                        `Stok "${item.nama}" sudah maksimal (${item.stok} unit).`, 'error'
+                    );
+                }
+            },
+
+            kurangQty(id) {
+                const item = Alpine.store('cart').items[id];
+                if (!item) return;
+                if (item.qty > 1) {
+                    Alpine.store('cart').update(id, item.qty - 1);
+                    this.autoRefresh();
+                } else {
+                    Alpine.store('cart').hapus(id);
+                    this.autoRefresh();
+                }
+            },
+
+            autoRefresh() {
+                setTimeout(() => window.location.reload(), 600);
+            },
+
+            // ── Foto Identitas ───────────────────────────────────────────
+            handleFoto(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                this.fotoFile = file;
+                const r = new FileReader();
+                r.onload = ev => { this.fotoPreview = ev.target.result; };
+                r.readAsDataURL(file);
+            },
+
+            // ── Helpers ──────────────────────────────────────────────────
+            rupiah(n) {
+                return 'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(n);
+            },
+
+            today() {
+                return new Date().toISOString().split('T')[0];
+            },
+
+            syncHidden() {
+                document.getElementById('input_tgl_ambil').value  = this.tglAmbil;
+                document.getElementById('input_tgl_kembali').value = this.tglKembali;
+                document.getElementById('input_metode').value     = this.metodePembayaran;
+                document.getElementById('input_jenis_id').value   = this.jenisIdentitas;
+                document.getElementById('input_durasi').value     = this.durasi;
+            },
+
+            // ── Submit Utama ─────────────────────────────────────────────
+            /**
+             * Untuk COD  : submit form biasa (sinkron).
+             * Untuk Midtrans : AJAX → dapatkan snap_token → buka popup Snap.
+             *
+             * Alur Midtrans:
+             *   1. syncHidden()    → isi hidden input
+             *   2. FormData(form)  → kumpulkan semua field + file foto
+             *   3. fetch POST      → CheckoutController::proses() → JSON { snap_token, redirect_url }
+             *   4. snap.pay()      → popup Midtrans muncul
+             *   5. onSuccess/onPending/onClose → redirect ke halaman struk
+             */
+            async submitForm() {
+                if (!this.bisaSubmit || this.loading) return;
+
+                this.submitError = null;
+                this.syncHidden();
+
+                // ── COD: submit biasa ──────────────────────────────────
+                if (this.metodePembayaran !== 'midtrans') {
+                    document.getElementById('form-checkout').submit();
+                    return;
+                }
+
+                // ── MIDTRANS: AJAX + Snap popup ────────────────────────
+                this.loading = true;
+
+                try {
+                    const form     = document.getElementById('form-checkout');
+                    const formData = new FormData(form);
+
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                            // _token sudah ada di FormData via @csrf, tapi
+                            // tambahkan header untuk keamanan ekstra
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        },
+                        body: formData,
+                    });
+
+                    const data = await response.json();
+
+                    // Validasi / error server
+                    if (!response.ok) {
+                        const errorMessages = data.errors
+                            ? Object.values(data.errors).flat().join(' • ')
+                            : (data.message || 'Terjadi kesalahan. Silakan coba lagi.');
+                        this.submitError = errorMessages;
+                        this.loading = false;
+                        return;
+                    }
+
+                    // ── Buka Midtrans Snap popup ───────────────────────
+                    window.snap.pay(data.snap_token, {
+
+                        // Pembayaran berhasil → redirect ke struk
+                        onSuccess: (_result) => {
+                            this.loading = false;
+                            window.location.href = data.redirect_url;
+                        },
+
+                        // Pembayaran pending (misal: VA belum dibayar)
+                        // Redirect ke struk, status masih "menunggu_pembayaran"
+                        // dan akan di-update oleh webhook Midtrans
+                        onPending: (_result) => {
+                            this.loading = false;
+                            window.location.href = data.redirect_url;
+                        },
+
+                        // Pembayaran gagal → tampilkan error, biarkan user coba lagi
+                        onError: (_result) => {
+                            this.loading = false;
+                            this.submitError =
+                                'Pembayaran gagal. Silakan coba metode pembayaran lain atau ulangi.';
+                        },
+
+                        // User menutup popup tanpa bayar → redirect ke struk
+                        // (pesanan sudah dibuat dengan status "menunggu_pembayaran",
+                        //  akan dibatalkan otomatis oleh scheduler setelah 24 jam)
+                        onClose: () => {
+                            this.loading = false;
+                            window.location.href = data.redirect_url;
+                        },
+                    });
+
+                } catch (err) {
+                    this.loading = false;
+                    this.submitError = 'Terjadi kesalahan jaringan. Periksa koneksi Anda dan coba lagi.';
+                    console.error('[Checkout Midtrans]', err);
+                }
+            },
+        }));
+    });
+</script>
 
 </html>

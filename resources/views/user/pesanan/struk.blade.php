@@ -68,7 +68,7 @@
                     'berjalan'            => ['text' => 'Sedang Berjalan',     'icon' => 'moving',       'color' => '#16a34a', 'bg' => '#dcfce7'],
                     'terlambat'           => ['text' => 'Terlambat',           'icon' => 'timer_off',    'color' => '#dc2626', 'bg' => '#fee2e2'],
                     'selesai'             => ['text' => 'Selesai',             'icon' => 'verified',     'color' => '#655e44', 'bg' => '#F2E8C6'],
-                    default               => ['text' => ucfirst($transaksi->status), 'icon' => 'info', 'color' => '#7b776c', 'bg' => '#e7e4dc'],
+                    default               => ['text' => ucfirst($transaksi->status->value), 'icon' => 'info', 'color' => '#7b776c', 'bg' => '#e7e4dc'],
                 };
             @endphp
             <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3"

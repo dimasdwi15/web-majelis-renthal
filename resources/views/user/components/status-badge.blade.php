@@ -1,4 +1,9 @@
 @php
+    use App\Enums\StatusTransaksi;
+
+    // Resolve enum to string if needed
+    $statusValue = $status instanceof StatusTransaksi ? $status->value : (string) $status;
+
     $statusConfig = [
         'menunggu_pembayaran' => [
             'label' => 'Menunggu Bayar',
@@ -28,6 +33,13 @@
             'dot'   => 'background: #dc2626;',
             'pulse' => true,
         ],
+        'dikembalikan' => [
+            'label' => 'Dikembalikan',
+            'color' => 'text-orange-800',
+            'bg'    => 'background: #fff7ed; border: 1px solid #fdba74;',
+            'dot'   => 'background: #f97316;',
+            'pulse' => true,
+        ],
         'selesai' => [
             'label' => 'Selesai',
             'color' => 'text-[#4d462e]',
@@ -44,8 +56,8 @@
         ],
     ];
 
-    $cfg = $statusConfig[$status] ?? [
-        'label' => ucfirst(str_replace('_', ' ', $status)),
+    $cfg = $statusConfig[$statusValue] ?? [
+        'label' => ucfirst(str_replace('_', ' ', $statusValue)),
         'color' => 'text-[#7b776c]',
         'bg'    => 'background: #e7e4dc; border: 1px solid #ccc6b9;',
         'dot'   => 'background: #a09880;',
@@ -59,3 +71,4 @@
           style="{{ $cfg['dot'] }}"></span>
     {{ $cfg['label'] }}
 </span>
+

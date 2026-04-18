@@ -158,7 +158,7 @@
             {{-- Bayar Midtrans --}}
             <div x-show="metode === 'midtrans'" x-transition>
                 @if($snapToken)
-                    <button onclick="snapPay('{{ $snapToken }}')"
+                    <button onclick="bayarDenda('{{ $denda->id }}')"
                             class="w-full flex items-center justify-center gap-2 text-[#F2E8C6] font-black text-sm uppercase tracking-widest py-3.5 rounded-xl transition-all hover:opacity-90 active:scale-[0.97]"
                             style="background: #655e44;">
                         <span class="material-symbols-outlined text-base">credit_card</span>
@@ -196,14 +196,29 @@
 
 @push('scripts')
 <script>
-function snapPay(token) {
-    if (!token) return;
-    snap.pay(token, {
-        onSuccess: function(result) {
-            window.location.href = '{{ route('user.pesanan.show', $denda->transaksi_id) }}?payment=success';
-        },
-        onPending: function(result) { window.location.reload(); },
-        onError:   function(result) { alert('Pembayaran gagal. Silakan coba lagi.'); }
+function bayarDenda(dendaId) {
+    fetch(`/akun/pesanan/bayar-denda/${dendaId}`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.snap_token) {
+            snap.pay(data.snap_token, {
+                onSuccess: function(result) {
+                    window.location.href = '{{ route('user.pesanan.show', $denda->transaksi_id) }}';
+                },
+                onPending: function(result) {
+                    window.location.reload();
+                },
+                onError: function(result) {
+                    alert('Pembayaran gagal');
+                }
+            });
+        }
     });
 }
 </script>

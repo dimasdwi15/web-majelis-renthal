@@ -21,7 +21,10 @@ class NotifikasiController extends Controller
     public function baca(Notifikasi $notifikasi)
     {
         abort_if($notifikasi->user_id !== Auth::id(), 403);
-        $notifikasi->update(['dibaca' => true]);
+
+        $notifikasi->update([
+            'dibaca_pada' => now()
+        ]);
 
         if (request()->ajax() || request()->wantsJson()) {
             return response()->json(['success' => true]);
@@ -33,8 +36,10 @@ class NotifikasiController extends Controller
     public function bacaSemua()
     {
         Notifikasi::where('user_id', Auth::id())
-            ->where('dibaca', false)
-            ->update(['dibaca' => true]);
+            ->whereNull('dibaca_pada')
+            ->update([
+                'dibaca_pada' => now()
+            ]);
 
         return back()->with('success', 'Semua notifikasi ditandai sudah dibaca.');
     }

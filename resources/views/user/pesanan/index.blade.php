@@ -15,12 +15,13 @@
     <div class="flex gap-1.5 pb-1 w-max min-w-full">
         @php
             $tabs = [
-                'semua'               => ['label' => 'Semua',         'icon' => 'format_list_bulleted'],
-                'menunggu_pembayaran' => ['label' => 'Menunggu Bayar','icon' => 'schedule'],
-                'berjalan'            => ['label' => 'Berjalan',      'icon' => 'moving'],
-                'terlambat'           => ['label' => 'Terlambat',     'icon' => 'timer_off'],
-                'selesai'             => ['label' => 'Selesai',       'icon' => 'check_circle'],
-                'dibatalkan'          => ['label' => 'Dibatalkan',    'icon' => 'cancel'],
+                'semua'               => ['label' => 'Semua',           'icon' => 'format_list_bulleted'],
+                'menunggu_pembayaran' => ['label' => 'Menunggu Bayar',  'icon' => 'schedule'],
+                'berjalan'            => ['label' => 'Berjalan',        'icon' => 'moving'],
+                'terlambat'           => ['label' => 'Terlambat',       'icon' => 'timer_off'],
+                'dikembalikan'        => ['label' => 'Dikembalikan',    'icon' => 'assignment_return'],
+                'selesai'             => ['label' => 'Selesai',         'icon' => 'check_circle'],
+                'dibatalkan'          => ['label' => 'Dibatalkan',      'icon' => 'cancel'],
             ];
             $activeTab = request('status', 'semua');
         @endphp
@@ -175,7 +176,10 @@
                 @endif
 
                 {{-- Lihat Struk (hanya jika bukan menunggu pembayaran) --}}
-                @if(in_array($trx->status, ['dibayar', 'berjalan', 'terlambat', 'selesai']))
+                @php
+                    $trxStatus = $trx->status instanceof \App\Enums\StatusTransaksi ? $trx->status->value : (string) $trx->status;
+                @endphp
+                @if(in_array($trxStatus, ['dibayar', 'berjalan', 'terlambat', 'dikembalikan', 'selesai']))
                     <a href="{{ route('user.pesanan.struk', $trx->id) }}"
                        class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-lg transition-all hover:opacity-80"
                        style="background: #f4f2ec; border: 1px solid rgba(101,94,68,0.2); color: #655e44;">
@@ -185,7 +189,7 @@
                 @endif
 
                 {{-- Bayar / Detail --}}
-                @if($trx->status === 'menunggu_pembayaran')
+                @if($trxStatus === 'menunggu_pembayaran')
                     <a href="{{ route('user.pesanan.show', $trx->id) }}"
                        class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-lg transition-all hover:opacity-80 text-[#F2E8C6]"
                        style="background: #655e44;">

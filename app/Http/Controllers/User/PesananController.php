@@ -116,6 +116,84 @@ class PesananController extends Controller
             ->with('success', 'Silakan bayar denda secara tunai di toko kami.');
     }
 
+    public function bayarUlang(Transaksi $transaksi)
+    {
+        abort_if($transaksi->user_id !== Auth::id(), 403);
+
+        if ($transaksi->status !== \App\Enums\StatusTransaksi::MenungguPembayaran) {
+            return back()->with('error', 'Transaksi tidak bisa dibayar ulang.');
+        }
+
+        \Midtrans\Config::$serverKey    = config('midtrans.server_key');
+        \Midtrans\Config::$isProduction = config('midtrans.is_production');
+        \Midtrans\Config::$isSanitized  = true;
+        \Midtrans\Config::$is3ds        = true;
+
+        $params = [
+            'transaction_details' => [
+                'order_id'     => $transaksi->nomor_transaksi,
+                'gross_amount' => (int) $transaksi->total_sewa,
+            ],
+            'customer_details' => [
+                'first_name' => $transaksi->user->name,
+                'email'      => $transaksi->user->email,
+            ],
+        ];
+
+        $snapToken = \Midtrans\Snap::getSnapToken($params);
+
+        $transaksi->pembayaranUtama?->update([
+            'referensi_midtrans' => $snapToken
+        ]);
+
+        return response()->json([
+            'snap_token' => $snapToken
+        ]);
+    }
+
+
+    public function bayarDendaLangsung(Denda $denda)
+    {
+        abort_if($denda->transaksi->user_id !== Auth::id(), 403);
+
+        Config::$serverKey    = config('midtrans.server_key');
+        Config::$isProduction = config('midtrans.is_production');
+        Config::$isSanitized  = true;
+        Config::$is3ds        = true;
+
+        $orderId = 'DENDA-' . $denda->id . '-' . time();
+
+        $params = [
+            'transaction_details' => [
+                'order_id'     => $orderId,
+                'gross_amount' => (int) $denda->jumlah,
+            ],
+            'customer_details' => [
+                'first_name' => Auth::user()->name,
+                'email'      => Auth::user()->email,
+            ],
+        ];
+
+        $snapToken = Snap::getSnapToken($params);
+
+        Pembayaran::updateOrCreate(
+            [
+                'transaksi_id' => $denda->transaksi_id,
+                'jenis'        => 'denda',
+                'status'       => 'menunggu',
+            ],
+            [
+                'jumlah'             => $denda->jumlah,
+                'metode'             => 'midtrans',
+                'referensi_midtrans' => $snapToken,
+            ]
+        );
+
+        return response()->json([
+            'snap_token' => $snapToken
+        ]);
+    }
+
     public function struk(Transaksi $transaksi)
     {
         abort_if($transaksi->user_id !== Auth::id(), 403);

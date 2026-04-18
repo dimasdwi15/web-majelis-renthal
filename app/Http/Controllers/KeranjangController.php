@@ -87,9 +87,11 @@ class KeranjangController extends Controller
     /**
      * Tambah item ke keranjang via AJAX.
      */
-    public function tambah(Request $request, Barang $barang)
+    public function tambah(Request $request, $barangId)
     {
-        if ($barang->status !== 'aktif' || $barang->stok < 1) {
+        $barang = Barang::with('fotoUtama')->find($barangId);
+
+        if (!$barang || $barang->status !== 'aktif' || $barang->stok < 1) {
             return response()->json([
                 'success' => false,
                 'message' => 'Barang tidak tersedia.',

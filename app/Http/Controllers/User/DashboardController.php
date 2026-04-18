@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Enums\StatusTransaksi;
 use App\Http\Controllers\Controller;
 use App\Models\Transaksi;
 use App\Models\Denda;
@@ -15,10 +16,13 @@ class DashboardController extends Controller
 
         $totalPesanan    = Transaksi::where('user_id', $user->id)->count();
         $pesananBerjalan = Transaksi::where('user_id', $user->id)
-                               ->whereIn('status', ['berjalan', 'dibayar'])
+                               ->whereIn('status', [
+                                   StatusTransaksi::Berjalan,
+                                   StatusTransaksi::Dibayar,
+                               ])
                                ->count();
         $menungguBayar   = Transaksi::where('user_id', $user->id)
-                               ->where('status', 'menunggu_pembayaran')
+                               ->where('status', StatusTransaksi::MenungguPembayaran)
                                ->count();
         $tagihanDenda    = Denda::whereHas('transaksi', fn($q) => $q->where('user_id', $user->id))
                                ->whereNull('dibayar_pada')
@@ -26,7 +30,13 @@ class DashboardController extends Controller
 
         $pesananAktif    = Transaksi::with(['details.barang'])
             ->where('user_id', $user->id)
-            ->whereIn('status', ['menunggu_pembayaran', 'dibayar', 'berjalan', 'terlambat'])
+            ->whereIn('status', [
+                StatusTransaksi::MenungguPembayaran,
+                StatusTransaksi::Dibayar,
+                StatusTransaksi::Berjalan,
+                StatusTransaksi::Terlambat,
+                StatusTransaksi::Dikembalikan,
+            ])
             ->latest()
             ->take(5)
             ->get();
@@ -38,7 +48,10 @@ class DashboardController extends Controller
             ->get();
 
         $riwayatSingkat = Transaksi::where('user_id', $user->id)
-            ->whereIn('status', ['selesai', 'dibatalkan'])
+            ->whereIn('status', [
+                StatusTransaksi::Selesai,
+                StatusTransaksi::Dibatalkan,
+            ])
             ->latest()
             ->take(5)
             ->get();
@@ -54,3 +67,4 @@ class DashboardController extends Controller
         ));
     }
 }
+
