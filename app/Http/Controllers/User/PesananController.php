@@ -154,6 +154,8 @@ class PesananController extends Controller
 
     public function bayarDendaLangsung(Denda $denda)
     {
+        $denda->load('transaksi'); 
+
         abort_if($denda->transaksi->user_id !== Auth::id(), 403);
 
         Config::$serverKey    = config('midtrans.server_key');

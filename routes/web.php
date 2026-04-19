@@ -90,6 +90,6 @@ Route::post('/pesanan/{transaksi}/bayar-ulang', [PesananController::class, 'baya
     ->middleware('auth')
     ->name('user.pesanan.bayar-ulang');
 
-Route::post('/bayar-denda/{denda}', [PesananController::class, 'bayarDendaLangsung']);
-
+Route::post('/bayar-denda/{denda}', [PesananController::class, 'bayarDendaLangsung'])
+    ->middleware('auth');
 require __DIR__ . '/auth.php';

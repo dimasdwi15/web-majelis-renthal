@@ -21,6 +21,8 @@ class MidtransCallbackController extends Controller
      */
     public function handle(Request $request)
     {
+        $payload = json_decode($request->getContent(), true);
+        
         Log::info('MIDTRANS CALLBACK MASUK', $request->all());
 
         $serverKey = config('midtrans.server_key');
@@ -201,51 +203,63 @@ class MidtransCallbackController extends Controller
      */
     private function handleDendaPayment(string $orderId, string $status, string $fraud)
     {
-        // Extract transaksi_id dari order_id: CHARGE-{id}-{timestamp}
-        $parts              = explode('-', $orderId);
-        $transaksiIdOrDendaId = $parts[1] ?? null;
+        // format: DENDA-{denda_id}-{timestamp}
+        $parts = explode('-', $orderId);
+        $dendaId = $parts[1] ?? null;
 
-        if (!$transaksiIdOrDendaId) {
+        if (!$dendaId) {
             return response()->json(['message' => 'Invalid order format'], 400);
         }
 
-        // Cari pembayaran denda yang sedang menunggu
-        $pembayaran = Pembayaran::where('jenis', 'denda')
-            ->where('transaksi_id', $transaksiIdOrDendaId)
+        $denda = \App\Models\Denda::with('transaksi')->find($dendaId);
+
+        if (!$denda) {
+            Log::warning('DENDA TIDAK DITEMUKAN', ['order_id' => $orderId]);
+            return response()->json(['message' => 'Denda not found'], 404);
+        }
+
+        $pembayaran = \App\Models\Pembayaran::where('jenis', 'denda')
+            ->where('transaksi_id', $denda->transaksi_id)
             ->where('status', 'menunggu')
             ->latest()
             ->first();
 
         if (!$pembayaran) {
-            Log::warning('Midtrans callback: pembayaran denda tidak ditemukan', [
-                'order_id' => $orderId,
-            ]);
-            return response()->json(['message' => 'Denda payment not found'], 404);
+            Log::warning('PEMBAYARAN DENDA TIDAK DITEMUKAN', ['order_id' => $orderId]);
+            return response()->json(['message' => 'Payment not found'], 404);
         }
 
-        $transaksi = $pembayaran->transaksi;
+        $transaksi = $denda->transaksi;
 
+        // ✅ SUCCESS
         if (in_array($status, ['capture', 'settlement'])) {
-            if ($fraud === 'accept' || $status === 'settlement') {
+
+            DB::transaction(function () use ($pembayaran, $denda, $transaksi) {
+
+                // update pembayaran
                 $pembayaran->update([
                     'status'       => 'lunas',
                     'dibayar_pada' => now(),
                 ]);
 
-                // Selesaikan transaksi via service
-                app(TransaksiService::class)->selesaikanTransaksi($transaksi);
+                // 🔥 update denda (INI YANG ANDA LUPAKAN)
+                $denda->update([
+                    'dibayar_pada' => now()
+                ]);
 
-                // Notifikasi admin
-                app(NotifikasiService::class)->notifDendaDibayar(
-                    nomorTransaksi: $transaksi->nomor_transaksi,
-                    namaUser: $transaksi->user->name,
-                    transaksiId: $transaksi->id,
-                    jumlah: (float) $pembayaran->jumlah
-                );
-            }
-        } elseif ($status === 'pending') {
+                // 🔥 selesai transaksi
+                app(\App\Services\TransaksiService::class)
+                    ->selesaikanTransaksi($transaksi);
+            });
+        }
+
+        // ⏳ pending
+        elseif ($status === 'pending') {
             $pembayaran->update(['status' => 'menunggu']);
-        } elseif (in_array($status, ['deny', 'expire', 'cancel'])) {
+        }
+
+        // ❌ gagal
+        elseif (in_array($status, ['deny', 'expire', 'cancel'])) {
             $pembayaran->update(['status' => 'gagal']);
         }
 

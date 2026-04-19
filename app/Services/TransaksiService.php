@@ -256,9 +256,15 @@ class TransaksiService
     public function selesaikanTransaksi(Transaksi $transaksi): void
     {
         DB::transaction(function () use ($transaksi) {
-            $transaksi->denda()->whereNull('dibayar_pada')->update([
-                'dibayar_pada' => now(),
-            ]);
+
+            // pastikan semua denda sudah dibayar
+            $semuaDendaLunas = $transaksi->denda()
+                ->whereNull('dibayar_pada')
+                ->count() === 0;
+
+            if (!$semuaDendaLunas) {
+                return;
+            }
 
             $transaksi->update([
                 'status'            => StatusTransaksi::Selesai,
@@ -270,7 +276,7 @@ class TransaksiService
                 transaksiId: $transaksi->id,
                 nomorTransaksi: $transaksi->nomor_transaksi,
                 statusBaru: 'selesai',
-                pesan: 'Pembayaran denda berhasil. Transaksi selesai. Terima kasih!'
+                pesan: 'Pembayaran denda berhasil. Transaksi selesai.'
             );
         });
     }
