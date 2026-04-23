@@ -259,6 +259,26 @@
                             Edit Profil
                         </a>
 
+                        {{-- 🔐 Shortcut Admin Panel --}}
+
+                        @php
+                            $user = Auth::user();
+
+                            $isAdmin = method_exists($user, 'hasRole')
+                                ? $user->hasAnyRole(['admin', 'super_admin'])
+                                : in_array($user->role ?? null, ['admin', 'super_admin']);
+                        @endphp
+
+                        @if ($isAdmin)
+                            <a href="{{ url('/admin') }}"
+                                class="flex items-center gap-3 px-4 py-2.5 text-yellow-400 text-xs font-semibold
+                                        uppercase tracking-wider hover:bg-yellow-900/30 hover:text-yellow-300
+                                        transition-all border-b border-[#655e44]/20">
+                                <span class="material-symbols-outlined text-base">admin_panel_settings</span>
+                                Admin Panel
+                            </a>
+                        @endif
+
                         {{-- Logout --}}
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf

@@ -2,6 +2,11 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Widgets\PendapatanBulananChart;
+use App\Filament\Widgets\StatusTransaksiChart;
+use App\Filament\Widgets\TopBarangChart;
+use App\Filament\Widgets\TransaksiHarianChart;
+use App\Filament\Widgets\TransaksiOverviewWidget;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -10,7 +15,6 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -19,7 +23,7 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Illuminate\Support\Facades\Auth;
 use Filament\Actions\Action;
-
+use Filament\Navigation\NavigationItem;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -46,10 +50,10 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarCollapsibleOnDesktop()
             ->colors([
                 'primary' => Color::Teal,
-                'danger' => Color::Red,
+                'danger'  => Color::Red,
                 'success' => Color::Lime,
                 'warning' => Color::Orange,
-                'info' => Color::Slate,
+                'info'    => Color::Slate,
             ])
 
             ->renderHook(
@@ -62,7 +66,17 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
             ])
-            ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
+
+            // ── Widgets didaftarkan eksplisit agar urutan terjaga ────────
+            // AccountWidget (bawaan Filament) sengaja tidak disertakan
+            // supaya dashboard hanya menampilkan widget Majelis Rental.
+            ->widgets([
+                TransaksiOverviewWidget::class,   // 🔝 selalu di atas
+                TransaksiHarianChart::class,      // 📈 insight utama
+                PendapatanBulananChart::class,    // 💰 insight kedua
+                TopBarangChart::class,            // 🏆 supporting
+            ])
+
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -77,11 +91,20 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
+
+            ->navigationItems([
+                NavigationItem::make('Website')
+                    ->group('System')
+                    ->url(url('/'))
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->sort(100),
+            ])
+
             ->userMenuItems([
                 'logout' => Action::make('logout')
                     ->label('Logout')
                     ->icon('heroicon-o-arrow-left-on-rectangle')
-                    ->requiresConfirmation() // 🔥 ini kuncinya
+                    ->requiresConfirmation()
                     ->modalHeading('Konfirmasi Logout')
                     ->modalDescription('Apakah Anda yakin ingin logout?')
                     ->modalSubmitActionLabel('Ya, Logout')

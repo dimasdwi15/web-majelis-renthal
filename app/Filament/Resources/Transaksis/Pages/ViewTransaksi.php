@@ -71,10 +71,6 @@ class ViewTransaksi extends ViewRecord
     }
 
     // ── Auto-check: tandai terlambat ──────────────────────────────────
-    //
-    // Jika transaksi ini statusnya 'berjalan' dan tanggal_kembali sudah
-    // terlewati (today > tanggal_kembali), langsung tandai sebagai 'terlambat'.
-    // Admin juga mendapat notifikasi di UI.
 
     private function autoCheckTerlambat(): void
     {
@@ -103,9 +99,6 @@ class ViewTransaksi extends ViewRecord
     }
 
     // ── Auto-check: batalkan COD expired ─────────────────────────────
-    //
-    // Deadline COD = tanggal_ambil + 1 hari (H+1).
-    // Jika sudah melewati deadline, otomatis dibatalkan.
 
     private function autoCheckDanBatalkanCodExpired(): void
     {
@@ -143,7 +136,7 @@ class ViewTransaksi extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            // 1. Bayar COD
+            // 1. Bayar COD (konfirmasi pembayaran sewa tunai)
             Action::make('bayarCod')
                 ->label('Bayar COD & Ambil Barang')
                 ->icon('heroicon-o-banknotes')
@@ -168,7 +161,7 @@ class ViewTransaksi extends ViewRecord
                         && $this->record->metode_pembayaran === MetodePembayaran::Tunai
                 ),
 
-            // 2. Pengambilan Barang
+            // 2. Pengambilan Barang (Midtrans — sudah dibayar, admin serahkan barang)
             Action::make('ambilBarang')
                 ->label('Serahkan Barang')
                 ->icon('heroicon-o-cube')
@@ -194,11 +187,6 @@ class ViewTransaksi extends ViewRecord
                 ),
 
             // 3. Proses Pengembalian
-            // Tombol ini muncul untuk status 'berjalan' DAN 'terlambat'.
-            // Jika terlambat, denda keterlambatan (50% total_sewa) sudah dihitung
-            // otomatis dari accessor — ditampilkan di modal sebagai informasi.
-            // Admin hanya perlu menambah denda kerusakan (jika ada).
-
             Action::make('prosesKembali')
                 ->label('Proses Pengembalian')
                 ->icon('heroicon-o-arrow-uturn-left')
@@ -273,7 +261,8 @@ class ViewTransaksi extends ViewRecord
                     Notification::make()
                         ->title('Pengembalian Berhasil')
                         ->body($totalDenda > 0
-                            ? 'Barang dikembalikan. Total denda: Rp ' . number_format($totalDenda, 0, ',', '.')
+                            ? 'Barang dikembalikan. Total denda: Rp ' . number_format($totalDenda, 0, ',', '.') .
+                              '. Pilih metode pembayaran denda di bawah.'
                             : 'Barang dikembalikan tanpa denda. Transaksi selesai.')
                         ->success()
                         ->send();
@@ -283,55 +272,70 @@ class ViewTransaksi extends ViewRecord
                     StatusTransaksi::Terlambat,
                 ])),
 
-            // 4. Bayar Denda COD
+            // ══════════════════════════════════════════════════════════
+            // PEMBAYARAN DENDA — tersedia untuk SEMUA metode pembayaran
+            // (baik user awalnya pilih Midtrans maupun COD saat checkout)
+            // ══════════════════════════════════════════════════════════
+
+            // 4. Bayar Denda COD — admin konfirmasi user bayar tunai di toko
+            //    Visible: status Dikembalikan + ada denda (TIDAK peduli metode awal)
             Action::make('bayarDendaCod')
-                ->label('Bayar Denda & Selesaikan')
-                ->icon('heroicon-o-check-circle')
+                ->label('Bayar Denda Tunai (COD)')
+                ->icon('heroicon-o-banknotes')
                 ->color('success')
                 ->requiresConfirmation()
-                ->modalHeading('Konfirmasi Pembayaran Denda COD')
-                ->modalIcon('heroicon-o-check-circle')
+                ->modalHeading('Konfirmasi Pembayaran Denda Tunai')
+                ->modalIcon('heroicon-o-banknotes')
                 ->modalIconColor('success')
-                ->modalDescription(fn() => 'Total denda: Rp ' . number_format($this->record->total_denda, 0, ',', '.') . '. Transaksi akan ditutup setelah ini.')
-                ->modalSubmitActionLabel('Ya, Bayar & Selesaikan')
+                ->modalDescription(
+                    fn() => 'Total denda: Rp ' . number_format($this->record->total_denda, 0, ',', '.') .
+                            '. Konfirmasi bahwa user sudah membayar tunai di toko. Transaksi akan diselesaikan.'
+                )
+                ->modalSubmitActionLabel('Ya, Konfirmasi Bayar Denda')
                 ->action(function () {
                     app(TransaksiService::class)->bayarDendaCod($this->record);
                     $this->refreshRecord();
                     Notification::make()
-                        ->title('Denda Lunas')
-                        ->body('Transaksi telah diselesaikan.')
+                        ->title('Denda Lunas (Tunai)')
+                        ->body('Pembayaran denda tunai dikonfirmasi. Transaksi telah diselesaikan.')
                         ->success()
                         ->send();
                 })
                 ->visible(
+                    // Tampil untuk SEMUA metode pembayaran selama status Dikembalikan
+                    // dan masih ada denda yang belum lunas
                     fn() => $this->record->status === StatusTransaksi::Dikembalikan
-                        && $this->record->metode_pembayaran === MetodePembayaran::Tunai
                         && (float) $this->record->total_denda > 0
                 ),
 
-            // 5. Kirim Tagihan Denda (Midtrans)
+            // 5. Kirim Tagihan Denda via Midtrans — admin kirim link ke user
+            //    Visible: status Dikembalikan + ada denda (TIDAK peduli metode awal)
             Action::make('kirimTagihan')
-                ->label('Kirim Tagihan Denda')
+                ->label('Kirim Tagihan Denda (Midtrans)')
                 ->icon('heroicon-o-paper-airplane')
                 ->color('primary')
                 ->requiresConfirmation()
                 ->modalHeading('Kirim Tagihan Denda via Midtrans')
                 ->modalIcon('heroicon-o-paper-airplane')
                 ->modalIconColor('primary')
-                ->modalDescription(fn() => 'Tagihan Rp ' . number_format($this->record->total_denda, 0, ',', '.') . ' akan dikirim ke user via notifikasi dan link pembayaran.')
+                ->modalDescription(
+                    fn() => 'Tagihan Rp ' . number_format($this->record->total_denda, 0, ',', '.') .
+                            ' akan dikirim ke user via notifikasi dan link pembayaran Midtrans.'
+                )
                 ->modalSubmitActionLabel('Ya, Kirim Tagihan')
                 ->action(function () {
                     app(TransaksiService::class)->kirimTagihan($this->record);
                     $this->refreshRecord();
                     Notification::make()
                         ->title('Tagihan Terkirim')
-                        ->body('Notifikasi dan link pembayaran denda telah dikirim ke user.')
+                        ->body('Notifikasi dan link pembayaran denda via Midtrans telah dikirim ke user.')
                         ->success()
                         ->send();
                 })
                 ->visible(
+                    // Tampil untuk SEMUA metode pembayaran selama status Dikembalikan
+                    // dan masih ada denda yang belum lunas
                     fn() => $this->record->status === StatusTransaksi::Dikembalikan
-                        && $this->record->metode_pembayaran === MetodePembayaran::Midtrans
                         && (float) $this->record->total_denda > 0
                 ),
         ];
@@ -364,7 +368,7 @@ class ViewTransaksi extends ViewRecord
                                     ->weight(FontWeight::Bold),
 
                                 TextEntry::make('metode_pembayaran')
-                                    ->label('Metode Pembayaran')
+                                    ->label('Metode Pembayaran (Sewa Awal)')
                                     ->badge()
                                     ->formatStateUsing(fn($state) => $state instanceof MetodePembayaran ? $state->label() : $state)
                                     ->color(fn($state) => $state instanceof MetodePembayaran ? $state->color() : 'gray'),
@@ -421,6 +425,7 @@ class ViewTransaksi extends ViewRecord
                             ]),
                         ]),
 
+                        // Info batas waktu COD
                         TextEntry::make('sisa_waktu_cod')
                             ->label('⏰ Batas Waktu Pembayaran COD')
                             ->icon('heroicon-m-clock')
@@ -432,6 +437,24 @@ class ViewTransaksi extends ViewRecord
                                 $record->metode_pembayaran === MetodePembayaran::Tunai
                                     && $record->status === StatusTransaksi::MenungguPembayaran
                             ),
+
+                        // ── INFO PILIHAN PEMBAYARAN DENDA ──────────────────────
+                        // Muncul saat status Dikembalikan dan ada denda,
+                        // memberitahu admin ada 2 opsi pembayaran denda.
+                        TextEntry::make('info_pilihan_denda')
+                            ->label('')
+                            ->getStateUsing(fn(Transaksi $record) =>
+                                '💡 Tersedia 2 opsi pembayaran denda: ' .
+                                '(1) Bayar Denda Tunai — konfirmasi langsung jika user membayar di toko, ' .
+                                '(2) Kirim Tagihan Midtrans — kirim link pembayaran ke user via notifikasi.'
+                            )
+                            ->visible(
+                                fn(Transaksi $record) =>
+                                $record->status === StatusTransaksi::Dikembalikan
+                                    && (float) $record->total_denda > 0
+                            )
+                            ->color('info')
+                            ->weight(FontWeight::SemiBold),
                     ]),
 
                 // ══════════════════════════════════════════════════════
@@ -526,6 +549,7 @@ class ViewTransaksi extends ViewRecord
                                                                 )
                                                                 ->height(80)
                                                                 ->width(80),
+
                                                             TextEntry::make('barang.nama')
                                                                 ->label('Nama Barang')
                                                                 ->weight(FontWeight::Bold)
@@ -556,11 +580,7 @@ class ViewTransaksi extends ViewRecord
                                             ]),
                                     ]),
 
-                                // ── Tab 3: Denda ──
-                                // Bagian ini menampilkan denda keterlambatan yang dihitung
-                                // otomatis via accessor `hitung_denda_telat` (50% total_sewa
-                                // jika terlambat) dan denda kerusakan yang diinput manual admin.
-
+                                // ── Tab 3: Denda & Kerusakan ──
                                 Tab::make('Denda & Kerusakan')
                                     ->icon('heroicon-o-exclamation-triangle')
                                     ->badge(fn(Transaksi $record) => $record->denda->isNotEmpty() ? $record->denda->count() : null)
@@ -589,7 +609,6 @@ class ViewTransaksi extends ViewRecord
                                                     TextEntry::make('total_denda')
                                                         ->label('Denda Kerusakan')
                                                         ->getStateUsing(function (Transaksi $record) {
-                                                            // Hanya tampilkan denda kerusakan (total_denda - denda_telat)
                                                             $dendaKerusakan = $record->total_denda - $record->hitung_denda_telat;
                                                             return max(0, $dendaKerusakan);
                                                         })
@@ -600,8 +619,7 @@ class ViewTransaksi extends ViewRecord
                                                         ->helperText('Diinput manual oleh admin saat pengembalian'),
                                                 ]),
 
-                                                // Info peringatan jika transaksi sedang terlambat
-                                                // dan belum diproses pengembalian
+                                                // Peringatan jika sedang terlambat
                                                 TextEntry::make('peringatan_terlambat')
                                                     ->label('')
                                                     ->getStateUsing(fn(Transaksi $record) =>
@@ -615,6 +633,24 @@ class ViewTransaksi extends ViewRecord
                                                     ->visible(fn(Transaksi $record) => $record->status === StatusTransaksi::Terlambat)
                                                     ->color('danger')
                                                     ->weight(FontWeight::SemiBold),
+
+                                                // ── INFO OPSI DENDA (di dalam tab) ──────────────────
+                                                // Muncul di tab denda saat ada tagihan denda aktif
+                                                TextEntry::make('info_opsi_pembayaran_denda')
+                                                    ->label('Opsi Pembayaran Denda')
+                                                    ->getStateUsing(fn(Transaksi $record) =>
+                                                        '⬆️ Gunakan tombol di header halaman: ' .
+                                                        '"Bayar Denda Tunai (COD)" jika user bayar langsung di toko, ' .
+                                                        'atau "Kirim Tagihan Denda (Midtrans)" untuk kirim link pembayaran ke user. ' .
+                                                        'Kedua opsi tersedia untuk semua metode pembayaran.'
+                                                    )
+                                                    ->visible(
+                                                        fn(Transaksi $record) =>
+                                                        $record->status === StatusTransaksi::Dikembalikan
+                                                            && (float) $record->total_denda > 0
+                                                    )
+                                                    ->color('info')
+                                                    ->columnSpanFull(),
                                             ]),
 
                                         Section::make('Riwayat Denda')
@@ -813,6 +849,30 @@ class ViewTransaksi extends ViewRecord
                                     ->weight(FontWeight::ExtraBold)
                                     ->size(TextSize::Large)
                                     ->color('success'),
+                            ]),
+
+                        // ── Panduan Pembayaran Denda (sidebar) ────────────────
+                        // Tampil saat ada denda aktif sebagai reminder untuk admin
+                        Section::make('Pembayaran Denda')
+                            ->icon('heroicon-o-exclamation-circle')
+                            ->description('Tersedia 2 opsi pembayaran')
+                            ->visible(
+                                fn(Transaksi $record) =>
+                                $record->status === StatusTransaksi::Dikembalikan
+                                    && (float) $record->total_denda > 0
+                            )
+                            ->schema([
+                                TextEntry::make('panduan_denda_cod')
+                                    ->label('💵 Tunai (COD)')
+                                    ->getStateUsing(fn() => 'Klik "Bayar Denda Tunai (COD)" jika user membayar langsung di toko. Transaksi langsung selesai.')
+                                    ->color('success')
+                                    ->size(TextSize::Small),
+
+                                TextEntry::make('panduan_denda_midtrans')
+                                    ->label('💳 Cashless (Midtrans)')
+                                    ->getStateUsing(fn() => 'Klik "Kirim Tagihan Denda (Midtrans)" untuk mengirim link pembayaran ke user. Transaksi selesai setelah user membayar.')
+                                    ->color('info')
+                                    ->size(TextSize::Small),
                             ]),
                     ]),
             ]);

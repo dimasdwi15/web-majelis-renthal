@@ -28,6 +28,14 @@ class TransaksisTable
                     ->weight('bold')
                     ->copyable(),
 
+                TextColumn::make('created_at')
+                    ->label('Masuk')
+                    ->dateTime('d M Y, H:i')
+                    ->sortable()
+                    ->since()          
+                    ->tooltip(fn($record) => $record->created_at->format('d M Y, H:i:s'))
+                    ->color('gray'),
+
                 TextColumn::make('user.name')
                     ->label('Penyewa')
                     ->searchable()
