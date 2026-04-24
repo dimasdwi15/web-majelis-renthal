@@ -11,112 +11,64 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
-
-
 class MidtransCallbackController extends Controller
 {
     /**
      * Handle Midtrans notification webhook.
      * Route: POST /midtrans/callback (exclude CSRF)
+     *
+     * PENTING: Pastikan URL notifikasi di dashboard Midtrans diisi:
+     *   https://<your-domain>/midtrans/callback
      */
     public function handle(Request $request)
     {
+        // ── Parse payload (Midtrans mengirim JSON body) ─────────────────
         $payload = json_decode($request->getContent(), true);
-        
-        Log::info('MIDTRANS CALLBACK MASUK', $request->all());
 
-        $serverKey = config('midtrans.server_key');
+        if (empty($payload)) {
+            // Fallback: gunakan request biasa jika bukan JSON murni
+            $payload = $request->all();
+        }
 
-        // ⚠️ FIX PENTING: format gross_amount harus sama persis
-        $grossAmount = number_format((float) $request->gross_amount, 2, '.', '');
+        Log::info('MIDTRANS CALLBACK MASUK', $payload);
 
-        $signature = hash(
+        $serverKey   = config('midtrans.server_key');
+        $orderId     = $payload['order_id']          ?? null;
+        $statusCode  = $payload['status_code']       ?? null;
+        $grossAmount = $payload['gross_amount']      ?? null;
+        $signatureKey = $payload['signature_key']    ?? null;
+        $status      = $payload['transaction_status'] ?? null;
+        $fraud       = $payload['fraud_status']      ?? 'accept';
+
+        if (!$orderId || !$statusCode || !$grossAmount || !$signatureKey) {
+            Log::warning('MIDTRANS CALLBACK: payload tidak lengkap', $payload);
+            return response()->json(['message' => 'Invalid payload'], 400);
+        }
+
+        // ── Validasi signature ──────────────────────────────────────────
+        // Format gross_amount harus sama persis (2 desimal, titik, tanpa koma)
+        $grossAmountFormatted = number_format((float) $grossAmount, 2, '.', '');
+
+        $expectedSignature = hash(
             'sha512',
-            $request->order_id .
-                $request->status_code .
-                $grossAmount .
-                $serverKey
+            $orderId . $statusCode . $grossAmountFormatted . $serverKey
         );
 
-        // ❌ jika gagal di sini → callback ditolak
-        if ($signature !== $request->signature_key) {
-            Log::warning('SIGNATURE TIDAK VALID', [
-                'expected' => $signature,
-                'actual'   => $request->signature_key,
+        if ($expectedSignature !== $signatureKey) {
+            Log::warning('MIDTRANS CALLBACK: signature tidak valid', [
+                'expected' => $expectedSignature,
+                'actual'   => $signatureKey,
+                'order_id' => $orderId,
             ]);
             return response()->json(['message' => 'Invalid signature'], 403);
         }
 
-        $orderId = $request->order_id;
-        $status  = $request->transaction_status;
-        $fraud   = $request->fraud_status ?? 'accept';
-
-        // 🔥 DETEKSI TIPE ORDER
+        // ── Routing berdasarkan tipe order ──────────────────────────────
         if (str_starts_with($orderId, 'DENDA-') || str_starts_with($orderId, 'CHARGE-')) {
             return $this->handleDendaPayment($orderId, $status, $fraud);
         }
 
-        // DEFAULT: transaksi utama
         return $this->handleUtamaPayment($orderId, $status, $fraud);
-
-        $transaksi = \App\Models\Transaksi::where('nomor_transaksi', $orderId)->first();
-
-        if (!$transaksi) {
-            Log::warning('TRANSAKSI TIDAK DITEMUKAN', ['order_id' => $orderId]);
-            return response()->json(['message' => 'Transaction not found'], 404);
-        }
-
-        $pembayaran = $transaksi->pembayaranUtama;
-
-        if (!$pembayaran) {
-            Log::warning('PEMBAYARAN TIDAK DITEMUKAN', ['order_id' => $orderId]);
-            return response()->json(['message' => 'Payment not found'], 404);
-        }
-
-        // Hindari double update
-        if ($pembayaran->status === 'lunas') {
-            return response()->json(['message' => 'Already processed']);
-        }
-
-        // ✅ SUCCESS
-        if (in_array($status, ['capture', 'settlement'])) {
-
-            DB::transaction(function () use ($pembayaran, $transaksi) {
-
-                $pembayaran->update([
-                    'status'       => 'lunas',
-                    'dibayar_pada' => now(),
-                ]);
-
-                $transaksi->update([
-                    'status'            => \App\Enums\StatusTransaksi::Berjalan,
-                    'status_pembayaran' => 'lunas',
-                ]);
-            });
-        }
-        // ⏳ PENDING
-        elseif ($status === 'pending') {
-            $pembayaran->update(['status' => 'menunggu']);
-        }
-        // ❌ GAGAL
-        elseif (in_array($status, ['expire', 'cancel', 'deny'])) {
-
-            DB::transaction(function () use ($pembayaran, $transaksi) {
-
-                $pembayaran->update(['status' => 'gagal']);
-
-                foreach ($transaksi->details as $detail) {
-                    $detail->barang->increment('stok', $detail->jumlah);
-                }
-
-                $transaksi->update([
-                    'status'            => \App\Enums\StatusTransaksi::Dibatalkan,
-                    'status_pembayaran' => 'gagal',
-                ]);
-            });
-        }
-
-        return response()->json(['message' => 'OK']);
     }
 
     /**
@@ -127,36 +79,33 @@ class MidtransCallbackController extends Controller
      *
      * Stok sudah dikurangi saat checkout, sehingga tidak perlu decrement lagi di sini.
      */
-    private function handleUtamaPayment(string $orderId, string $status, string $fraud)
+    private function handleUtamaPayment(string $orderId, string $status, string $fraud): \Illuminate\Http\JsonResponse
     {
         $transaksi = Transaksi::where('nomor_transaksi', $orderId)->first();
 
         if (!$transaksi) {
-            Log::warning('Midtrans callback: transaksi tidak ditemukan', [
-                'order_id' => $orderId,
-            ]);
+            Log::warning('Midtrans callback: transaksi tidak ditemukan', ['order_id' => $orderId]);
             return response()->json(['message' => 'Transaction not found'], 404);
         }
 
         $pembayaran = $transaksi->pembayaranUtama;
 
         if (!$pembayaran) {
-            Log::warning('Midtrans callback: pembayaran tidak ditemukan', [
-                'order_id' => $orderId,
-            ]);
+            Log::warning('Midtrans callback: pembayaran tidak ditemukan', ['order_id' => $orderId]);
             return response()->json(['message' => 'Payment not found'], 404);
         }
 
         // ⛔ Hindari double update (idempotency)
         if ($pembayaran->status === 'lunas') {
+            Log::info('Midtrans callback: sudah diproses (idempotency)', ['order_id' => $orderId]);
             return response()->json(['message' => 'Already processed']);
         }
 
+        // ✅ SUCCESS
         if (in_array($status, ['capture', 'settlement'])) {
             if ($fraud === 'accept' || $status === 'settlement') {
 
                 DB::transaction(function () use ($pembayaran, $transaksi) {
-
                     $pembayaran->update([
                         'status'       => 'lunas',
                         'dibayar_pada' => now(),
@@ -168,6 +117,8 @@ class MidtransCallbackController extends Controller
                     ]);
                 });
 
+                Log::info('Midtrans: pembayaran utama berhasil', ['order_id' => $orderId]);
+
                 app(NotifikasiService::class)->notifStatusUpdate(
                     userId: $transaksi->user_id,
                     transaksiId: $transaksi->id,
@@ -176,14 +127,19 @@ class MidtransCallbackController extends Controller
                     pesan: 'Pembayaran berhasil! Barang siap diambil.'
                 );
             }
-        } elseif ($status === 'pending') {
+        }
+        // ⏳ PENDING
+        elseif ($status === 'pending') {
             $pembayaran->update(['status' => 'menunggu']);
-        } elseif (in_array($status, ['deny', 'expire', 'cancel'])) {
+            Log::info('Midtrans: pembayaran pending', ['order_id' => $orderId]);
+        }
+        // ❌ GAGAL
+        elseif (in_array($status, ['deny', 'expire', 'cancel'])) {
 
             DB::transaction(function () use ($pembayaran, $transaksi) {
-
                 $pembayaran->update(['status' => 'gagal']);
 
+                // Kembalikan stok yang sudah dikurangi saat checkout
                 foreach ($transaksi->details as $detail) {
                     $detail->barang->increment('stok', $detail->jumlah);
                 }
@@ -193,28 +149,35 @@ class MidtransCallbackController extends Controller
                     'status_pembayaran' => 'gagal',
                 ]);
             });
+
+            Log::info('Midtrans: pembayaran gagal/expired/cancel', [
+                'order_id' => $orderId,
+                'status'   => $status,
+            ]);
         }
 
         return response()->json(['message' => 'OK']);
     }
 
     /**
-     * Handle pembayaran denda (charge).
+     * Handle pembayaran denda / charge.
+     * Format order_id: DENDA-{denda_id}-{timestamp}
      */
-    private function handleDendaPayment(string $orderId, string $status, string $fraud)
+    private function handleDendaPayment(string $orderId, string $status, string $fraud): \Illuminate\Http\JsonResponse
     {
-        // format: DENDA-{denda_id}-{timestamp}
-        $parts = explode('-', $orderId);
+        // Ambil denda_id dari format: DENDA-{id}-{timestamp}
+        $parts   = explode('-', $orderId);
         $dendaId = $parts[1] ?? null;
 
         if (!$dendaId) {
+            Log::warning('Midtrans denda: format order_id tidak valid', ['order_id' => $orderId]);
             return response()->json(['message' => 'Invalid order format'], 400);
         }
 
         $denda = \App\Models\Denda::with('transaksi')->find($dendaId);
 
         if (!$denda) {
-            Log::warning('DENDA TIDAK DITEMUKAN', ['order_id' => $orderId]);
+            Log::warning('Midtrans denda: denda tidak ditemukan', ['order_id' => $orderId]);
             return response()->json(['message' => 'Denda not found'], 404);
         }
 
@@ -225,7 +188,7 @@ class MidtransCallbackController extends Controller
             ->first();
 
         if (!$pembayaran) {
-            Log::warning('PEMBAYARAN DENDA TIDAK DITEMUKAN', ['order_id' => $orderId]);
+            Log::warning('Midtrans denda: pembayaran denda tidak ditemukan', ['order_id' => $orderId]);
             return response()->json(['message' => 'Payment not found'], 404);
         }
 
@@ -235,32 +198,29 @@ class MidtransCallbackController extends Controller
         if (in_array($status, ['capture', 'settlement'])) {
 
             DB::transaction(function () use ($pembayaran, $denda, $transaksi) {
-
-                // update pembayaran
                 $pembayaran->update([
                     'status'       => 'lunas',
                     'dibayar_pada' => now(),
                 ]);
 
-                // 🔥 update denda (INI YANG ANDA LUPAKAN)
                 $denda->update([
-                    'dibayar_pada' => now()
+                    'dibayar_pada' => now(),
                 ]);
 
-                // 🔥 selesai transaksi
                 app(\App\Services\TransaksiService::class)
                     ->selesaikanTransaksi($transaksi);
             });
-        }
 
-        // ⏳ pending
+            Log::info('Midtrans: pembayaran denda berhasil', ['order_id' => $orderId]);
+        }
+        // ⏳ PENDING
         elseif ($status === 'pending') {
             $pembayaran->update(['status' => 'menunggu']);
         }
-
-        // ❌ gagal
+        // ❌ GAGAL
         elseif (in_array($status, ['deny', 'expire', 'cancel'])) {
             $pembayaran->update(['status' => 'gagal']);
+            Log::info('Midtrans: pembayaran denda gagal', ['order_id' => $orderId, 'status' => $status]);
         }
 
         return response()->json(['message' => 'OK']);
