@@ -37,6 +37,10 @@
                 get isEmpty() {
                     return this.count === 0;
                 },
+                // ✅ FIX: getter untuk mendapatkan keys object agar x-for bisa iterasi dengan benar
+                get keys() {
+                    return Object.keys(this.items);
+                },
 
                 formatRupiah(n) {
                     return 'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(n);
@@ -46,7 +50,12 @@
                 },
 
                 syncItems(newCart) {
-                    this.items = { ...newCart };
+                    // ✅ FIX: pastikan newCart selalu object, bukan array
+                    if (Array.isArray(newCart)) {
+                        this.items = {};
+                    } else {
+                        this.items = { ...newCart };
+                    }
                     this.version++;
                 },
 
@@ -63,7 +72,10 @@
                 },
 
                 async tambahItem(barangId) {
-                    if (!barangId) return;
+                    // ✅ FIX: guard yang lebih aman — cek null/undefined bukan falsy
+                    //    supaya barangId = "0" (meski tidak mungkin) tidak ter-skip
+                    if (barangId === null || barangId === undefined || barangId === '') return;
+
                     try {
                         const res = await fetch(`/keranjang/tambah/${barangId}`, {
                             method: 'POST',
@@ -242,51 +254,77 @@
             </template>
 
             {{-- Cart Items --}}
+            {{--
+                ✅ FIX UTAMA:
+                Sebelumnya: x-for="(item, id) in $store.cart.items"
+                  → id = index numerik (0, 1, 2...) BUKAN barang ID
+                  → tambahItem(id) memanggil /keranjang/tambah/0 (SALAH)
+
+                Sesudah: x-for="barangId in $store.cart.keys"
+                  → barangId = key string dari object ("5", "12", dst)
+                  → tambahItem(barangId) memanggil /keranjang/tambah/5 (BENAR)
+                  → item diakses via $store.cart.items[barangId] → selalu reaktif & fresh
+            --}}
             <template x-if="!$store.cart.isEmpty">
                 <div class="space-y-3" :key="$store.cart.version">
-                    <template x-for="(item, id) in $store.cart.items" :key="id">
+                    <template x-for="barangId in $store.cart.keys" :key="barangId">
                         <div class="bg-[#251D1D] rounded-lg p-4 flex gap-3 border border-[#655e44]/20 group/item">
 
                             {{-- Foto --}}
                             <div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-[#1a1412]">
-                                <img :src="item.foto ? `/storage/${item.foto}` : '/images/no-image.png'" :alt="item.nama" class="w-full h-full object-cover">
+                                <img
+                                    :src="$store.cart.items[barangId]?.foto ? `/storage/${$store.cart.items[barangId].foto}` : '/images/no-image.png'"
+                                    :alt="$store.cart.items[barangId]?.nama"
+                                    class="w-full h-full object-cover">
                             </div>
 
                             {{-- Detail --}}
                             <div class="flex-1 min-w-0">
-                                <p class="text-[#F2E8C6] text-xs font-semibold uppercase tracking-wide leading-tight line-clamp-2 mb-1" x-text="item.nama"></p>
-                                <p class="text-[#a8956a] text-xs font-bold mb-1" x-text="$store.cart.formatRupiah(item.harga) + '/hari'"></p>
-                                <p class="text-[#655e44] text-[10px] mb-2" x-text="'Stok: ' + item.stok + ' unit'"></p>
+                                <p class="text-[#F2E8C6] text-xs font-semibold uppercase tracking-wide leading-tight line-clamp-2 mb-1"
+                                   x-text="$store.cart.items[barangId]?.nama"></p>
+                                <p class="text-[#a8956a] text-xs font-bold mb-1"
+                                   x-text="$store.cart.formatRupiah($store.cart.items[barangId]?.harga ?? 0) + '/hari'"></p>
+                                <p class="text-[#655e44] text-[10px] mb-2"
+                                   x-text="'Stok: ' + ($store.cart.items[barangId]?.stok ?? 0) + ' unit'"></p>
 
                                 {{-- Qty Control --}}
                                 <div class="flex items-center gap-2">
-                                    <!-- Tombol Kurang -->
-                                    <button @click="item.qty > 1 ? $store.cart.update(id, item.qty - 1) : $store.cart.hapus(id)"
+                                    {{-- Tombol Kurang --}}
+                                    <button
+                                        @click="$store.cart.items[barangId]?.qty > 1
+                                            ? $store.cart.update(barangId, $store.cart.items[barangId].qty - 1)
+                                            : $store.cart.hapus(barangId)"
                                         class="w-6 h-6 flex items-center justify-center rounded bg-[#655e44]/20 hover:bg-[#655e44] text-[#F2E8C6] transition-colors flex-shrink-0">
                                         <span class="material-symbols-outlined text-sm leading-none">remove</span>
                                     </button>
 
-                                    <span class="text-[#F2E8C6] text-xs font-bold w-5 text-center" x-text="item.qty"></span>
+                                    <span class="text-[#F2E8C6] text-xs font-bold w-5 text-center"
+                                          x-text="$store.cart.items[barangId]?.qty ?? 0"></span>
 
-                                    <!-- Tombol Tambah -->
+                                    {{-- Tombol Tambah --}}
                                     <button
-                                        @click="item.qty < item.stok ? $store.cart.tambahItem(id) : Alpine.store('toast').flash(`Stok \"${item.nama}\" sudah maksimal (${item.stok} unit tersedia).`, 'error')"
+                                        @click="($store.cart.items[barangId]?.qty ?? 0) < ($store.cart.items[barangId]?.stok ?? 0)
+                                            ? $store.cart.tambahItem(barangId)
+                                            : Alpine.store('toast').flash(`Stok '${$store.cart.items[barangId]?.nama}' sudah maksimal (${$store.cart.items[barangId]?.stok} unit tersedia).`, 'error')"
                                         class="w-6 h-6 flex items-center justify-center rounded bg-[#655e44]/20 hover:bg-[#655e44] text-[#F2E8C6] transition-colors flex-shrink-0"
-                                        :class="item.qty >= item.stok ? 'opacity-40' : ''">
+                                        :class="($store.cart.items[barangId]?.qty ?? 0) >= ($store.cart.items[barangId]?.stok ?? 0) ? 'opacity-40' : ''">
                                         <span class="material-symbols-outlined text-sm leading-none">add</span>
                                     </button>
 
-                                    <span class="ml-auto text-[#a8956a] text-xs font-bold" x-text="$store.cart.formatRupiah(item.harga * item.qty)"></span>
+                                    <span class="ml-auto text-[#a8956a] text-xs font-bold"
+                                          x-text="$store.cart.formatRupiah(($store.cart.items[barangId]?.harga ?? 0) * ($store.cart.items[barangId]?.qty ?? 0))">
+                                    </span>
                                 </div>
 
-                                <div x-show="item.qty >= item.stok" class="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-900/30 border border-amber-700/30 px-2 py-0.5 rounded-full">
+                                <div x-show="($store.cart.items[barangId]?.qty ?? 0) >= ($store.cart.items[barangId]?.stok ?? 0)"
+                                     class="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-900/30 border border-amber-700/30 px-2 py-0.5 rounded-full">
                                     <span class="material-symbols-outlined text-[11px]">warning</span>
                                     Stok Maksimal
                                 </div>
                             </div>
 
-                            <!-- Hapus -->
-                            <button @click="$store.cart.hapus(id)"
+                            {{-- Hapus --}}
+                            <button @click="$store.cart.hapus(barangId)"
                                 class="text-[#F2E8C6]/20 hover:text-red-400 transition-colors flex-shrink-0 self-start mt-0.5 opacity-0 group-hover/item:opacity-100">
                                 <span class="material-symbols-outlined text-base">delete</span>
                             </button>
