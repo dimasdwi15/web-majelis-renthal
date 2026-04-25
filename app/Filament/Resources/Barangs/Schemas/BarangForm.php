@@ -30,7 +30,6 @@ class BarangForm
                     ->required()
                     ->placeholder('Contoh: Carrier 60L Deuter, Tenda Dome 4 orang...')
                     ->helperText('Isi nama barang lalu klik ✨ Auto Generate untuk mengisi deskripsi & spesifikasi otomatis.')
-                    // ✅ FIX: hapus ->disabled() dari action karena pakai $get, bukan $state
                     ->suffixActions([
                         GenerateBarangAction::make(),
                     ]),
@@ -67,6 +66,21 @@ class BarangForm
                     ])
                     ->default('aktif')
                     ->required(),
+
+                // ── Tag Fungsional ─────────────────────────────────────────────
+                // Filament otomatis sync pivot table barang_tag saat save/update.
+                // Admin tinggal centang tag yang sesuai — tidak perlu kode tambahan.
+                Select::make('tags')
+                    ->label('Tag Fungsional')
+                    ->relationship('tags', 'label')
+                    ->multiple()
+                    ->searchable()
+                    ->preload()
+                    ->helperText(
+                        'Tag menentukan barang ini direkomendasikan pada kondisi cuaca apa. ' .
+                        'Contoh: Tenda → [Shelter, Waterproof] · Sleeping Bag → [Penghangat]'
+                    )
+                    ->columnSpanFull(),
 
                 FileUpload::make('foto')
                     ->label('Foto Barang')

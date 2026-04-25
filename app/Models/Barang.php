@@ -3,6 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Barang extends Model
 {
@@ -18,31 +22,55 @@ class Barang extends Model
         'status',
     ];
 
-    // Scope untuk filter barang aktif
+    // ── Scopes ───────────────────────────────────────────────────────────────
+
+    /**
+     * Hanya barang yang aktif dan masih ada stok.
+     */
     public function scopeAktif($query)
     {
         return $query->where('status', 'aktif');
     }
 
-    public function kategori()
+    public function scopeTersedia($query)
+    {
+        return $query->where('status', 'aktif')->where('stok', '>', 0);
+    }
+
+    // ── Relationships ─────────────────────────────────────────────────────────
+
+    public function kategori(): BelongsTo
     {
         return $this->belongsTo(KategoriBarang::class, 'kategori_barang_id');
     }
 
-    public function foto()
+    public function foto(): HasMany
     {
         return $this->hasMany(BarangFoto::class, 'barang_id');
     }
 
-    public function transaksiDetail()
+    /**
+     * Foto pertama yang diupload = foto utama (konsisten).
+     */
+    public function fotoUtama(): HasOne
+    {
+        return $this->hasOne(BarangFoto::class, 'barang_id')->oldestOfMany();
+    }
+
+    public function transaksiDetail(): HasMany
     {
         return $this->hasMany(TransaksiDetail::class, 'barang_id');
     }
 
-    // FIX: oldestOfMany() = foto pertama diupload = foto utama
-    // latestOfMany() = foto terbaru = tidak konsisten sebagai "foto utama"
-    public function fotoUtama()
+    /**
+     * Tag fungsional barang (many-to-many via barang_tag).
+     *
+     * Contoh: Tenda → [shelter, waterproof]
+     *         Jas hujan → [waterproof]
+     *         Sleeping bag → [insulating]
+     */
+    public function tags(): BelongsToMany
     {
-        return $this->hasOne(BarangFoto::class, 'barang_id')->oldestOfMany();
+        return $this->belongsToMany(Tag::class, 'barang_tag');
     }
 }

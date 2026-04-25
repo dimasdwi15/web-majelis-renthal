@@ -16,17 +16,9 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            UserSeeder::class,
-            KategoriBarangSeeder::class,
-            BarangSeeder::class,
-            BarangFotoSeeder::class,
-            TransaksiSeeder::class,
-            TransaksiDetailSeeder::class,
-            PembayaranSeeder::class,
-            DendaSeeder::class,
-            DendaFotoSeeder::class,
-            JaminanIdentitasSeeder::class,
-            LogAdminSeeder::class,
+            // ── Tag & Weather Rules (urutan PENTING — tag harus ada dulu) ──
+            TagSeeder::class,           // 1. Buat semua tag fungsional
+            WeatherTagRuleSeeder::class, // 2. Mapping cuaca → tag
         ]);
     }
 }

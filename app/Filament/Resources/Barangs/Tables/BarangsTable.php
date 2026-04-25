@@ -15,9 +15,6 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\Filter;
 use Filament\Forms\Components\TextInput;
 use Filament\Actions\DeleteBulkAction;
-use Illuminate\Support\HtmlString;
-
-
 
 class BarangsTable
 {
@@ -48,6 +45,17 @@ class BarangsTable
                     ->label('Kategori')
                     ->badge(),
 
+                // ── Kolom Tags ─────────────────────────────────────────────────
+                // Menampilkan semua tag yang di-assign ke barang ini.
+                // Jika kosong berarti barang belum di-tag → tidak akan muncul
+                // di rekomendasi cuaca manapun.
+                TextColumn::make('tags.label')
+                    ->label('Tags')
+                    ->badge()
+                    ->separator(',')
+                    ->placeholder('— belum ada tag —')
+                    ->color('warning'),
+
                 TextColumn::make('stok')
                     ->suffix(' Unit'),
 
@@ -59,12 +67,11 @@ class BarangsTable
                     ->colors([
                         'success' => 'aktif',
                         'warning' => 'disewa',
-                        'danger' => 'nonaktif',
+                        'danger'  => 'nonaktif',
                     ]),
             ])
 
             ->filters([
-
                 SelectFilter::make('kategori_barang_id')
                     ->label('Kategori')
                     ->options(
@@ -73,9 +80,17 @@ class BarangsTable
 
                 SelectFilter::make('status')
                     ->options([
-                        'aktif' => 'Aktif',
+                        'aktif'    => 'Aktif',
                         'nonaktif' => 'Nonaktif',
                     ]),
+
+                // ── Filter by Tag ──────────────────────────────────────────────
+                // Admin bisa filter tabel barang berdasarkan tag fungsional.
+                SelectFilter::make('tags')
+                    ->label('Tag Fungsional')
+                    ->relationship('tags', 'label')
+                    ->searchable()
+                    ->preload(),
 
                 Filter::make('stok')
                     ->form([
@@ -89,51 +104,31 @@ class BarangsTable
                     ])
                     ->query(function ($query, array $data) {
                         return $query
-                            ->when($data['min'], fn ($q) => $q->where('stok', '>=', $data['min']))
-                            ->when($data['max'], fn ($q) => $q->where('stok', '<=', $data['max']));
+                            ->when($data['min'], fn($q) => $q->where('stok', '>=', $data['min']))
+                            ->when($data['max'], fn($q) => $q->where('stok', '<=', $data['max']));
                     }),
-
-                // FILTER HARGA RANGE
-
-                // Filter::make('harga_per_hari')
-                //     ->form([
-                //         TextInput::make('min')
-                //             ->label('Min Harga')
-                //             ->numeric(),
-
-                //         TextInput::make('max')
-                //             ->label('Max Harga')
-                //             ->numeric(),
-                //     ])
-                //     ->query(function ($query, array $data) {
-                //         return $query
-                //             ->when($data['min'], fn ($q) => $q->where('harga_per_hari', '>=', $data['min']))
-                //             ->when($data['max'], fn ($q) => $q->where('harga_per_hari', '<=', $data['max']));
-                //     }),
-
             ])
 
-            // EDIT + DELETE
             ->recordActions([
                 EditAction::make()
                     ->modalHeading('Edit Barang')
                     ->modalSubmitActionLabel('Update')
-
                     ->after(function ($record, array $data) {
-                        if (array_key_exists('foto', $data)) {
+                        // Handle foto: replace semua foto jika ada upload baru
+                        if (array_key_exists('foto', $data) && !empty($data['foto'])) {
+                            $record->foto()->delete();
 
-                            if (!empty($data['foto'])) {
-
-                                $record->foto()->delete();
-
-                                foreach ($data['foto'] as $path) {
-                                    BarangFoto::create([
-                                        'barang_id' => $record->id,
-                                        'path_foto' => $path,
-                                    ]);
-                                }
+                            foreach ($data['foto'] as $path) {
+                                BarangFoto::create([
+                                    'barang_id' => $record->id,
+                                    'path_foto' => $path,
+                                ]);
                             }
                         }
+
+                        // CATATAN: tags TIDAK perlu dihandle di sini.
+                        // Filament sync pivot barang_tag secara otomatis
+                        // karena Select::make('tags')->relationship() di BarangForm.
                     }),
 
                 DeleteAction::make(),

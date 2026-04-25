@@ -16,6 +16,9 @@
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
         rel="stylesheet" />
 
+    {{-- Leaflet CSS — map picker --}}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+
     @if(config('midtrans.is_production'))
         <script src="https://app.midtrans.com/snap/snap.js"
                 data-client-key="{{ config('midtrans.client_key') }}"></script>
@@ -23,6 +26,33 @@
         <script src="https://app.sandbox.midtrans.com/snap/snap.js"
                 data-client-key="{{ config('midtrans.client_key') }}"></script>
     @endif
+
+    <style>
+        /* Map container */
+        #cuaca-map { height: 280px; width: 100%; border-radius: 16px; z-index: 0; }
+        .leaflet-container { font-family: inherit; }
+
+        /* Search dropdown */
+        .lokasi-dropdown {
+            position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+            background: white; border: 1.5px solid #e0d9c8; border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.10); z-index: 1000;
+            overflow: hidden; max-height: 280px; overflow-y: auto;
+        }
+        .lokasi-dropdown-item {
+            padding: 10px 14px; cursor: pointer; font-size: 12px;
+            border-bottom: 1px solid #f0ece0; transition: background .15s;
+            display: flex; gap: 10px; align-items: flex-start;
+        }
+        .lokasi-dropdown-item:last-child { border-bottom: none; }
+        .lokasi-dropdown-item:hover { background: #faf8f2; }
+        .lokasi-dropdown-item .loc-icon { color: #7b6f52; flex-shrink: 0; margin-top: 1px; font-size: 16px; }
+        .lokasi-dropdown-item .loc-nama { font-weight: 600; color: #1b1c1a; line-height: 1.3; }
+        .lokasi-dropdown-item .loc-sub  { color: #9b947c; font-size: 10px; margin-top: 1px; }
+
+        /* Upload preview hover */
+        .upload-preview-wrap:hover .upload-overlay { opacity: 1 !important; }
+    </style>
 </head>
 
 <body class="bg-[#f5f3ed] text-[#1b1c1a] antialiased">
@@ -34,8 +64,7 @@
         <div class="mb-12">
             <div class="flex items-center gap-3 mb-3">
                 <div class="h-px w-10 bg-[#4d462e]"></div>
-                <span class="font-syne text-[10px] font-bold tracking-[0.3em] uppercase text-[#7b6f52]">Majelis
-                    Rental</span>
+                <span class="font-syne text-[10px] font-bold tracking-[0.3em] uppercase text-[#7b6f52]">Majelis Rental</span>
             </div>
             <h1 class="font-syne font-extrabold text-4xl md:text-5xl uppercase tracking-tight leading-none mb-4">
                 Konfirmasi <span class="text-[#4d462e]">Sewa</span>
@@ -70,47 +99,34 @@
             <div class="flex-1 space-y-5 min-w-0">
 
                 {{-- 01 · DURASI SEWA --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">01</span>
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">01</span>
                         <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Durasi Sewa</h2>
                     </div>
                     <div class="p-6">
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                             <div>
-                                <label
-                                    class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Tanggal
-                                    Ambil</label>
+                                <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Tanggal Ambil</label>
                                 <div class="relative">
-                                    <span
-                                        class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">calendar_today</span>
+                                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">calendar_today</span>
                                     <input type="date" x-model="tglAmbil" :min="today()"
-                                        x-on:change="if(tglKembali && tglKembali <= tglAmbil) tglKembali = ''; onDateOrLokasiChange()"
+                                        x-on:change="if(tglKembali && tglKembali <= tglAmbil) tglKembali = ''; onDateChange()"
                                         class="w-full pl-10 pr-3 py-3 border-[1.5px] border-[#e0d9c8] rounded-xl text-sm bg-white focus:outline-none focus:border-[#4d462e] focus:ring-2 focus:ring-[#4d462e]/10 transition-all">
                                 </div>
                             </div>
                             <div>
-                                <label
-                                    class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Tanggal
-                                    Kembali</label>
+                                <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Tanggal Kembali</label>
                                 <div class="relative">
-                                    <span
-                                        class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">event</span>
-                                    <input type="date" x-model="tglKembali" :min="tglAmbil || today()"
-                                        :disabled="!tglAmbil"
+                                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">event</span>
+                                    <input type="date" x-model="tglKembali" :min="tglAmbil || today()" :disabled="!tglAmbil"
                                         class="w-full pl-10 pr-3 py-3 border-[1.5px] border-[#e0d9c8] rounded-xl text-sm bg-white focus:outline-none focus:border-[#4d462e] focus:ring-2 focus:ring-[#4d462e]/10 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                                 </div>
                             </div>
-                            <div
-                                class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#2e2a1e] to-[#4d462e] px-6 py-5 text-center">
+                            <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#2e2a1e] to-[#4d462e] px-6 py-5 text-center">
                                 <div class="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/5"></div>
-                                <span class="font-syne font-extrabold text-4xl text-[#F2E8C6] leading-none block"
-                                    x-text="durasi || '—'"></span>
-                                <span class="text-[9px] tracking-[0.22em] uppercase text-[#F2E8C6]/60 mt-1 block">Hari
-                                    Sewa</span>
+                                <span class="font-syne font-extrabold text-4xl text-[#F2E8C6] leading-none block" x-text="durasi || '—'"></span>
+                                <span class="text-[9px] tracking-[0.22em] uppercase text-[#F2E8C6]/60 mt-1 block">Hari Sewa</span>
                             </div>
                         </div>
                         <div x-show="tglAmbil && tglKembali && durasi === 0" x-cloak
@@ -121,87 +137,124 @@
                     </div>
                 </div>
 
-                {{-- ═══ LOKASI CAMPING & CUACA ═══ --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md"
+                {{-- ═══ LOKASI & CUACA — Free Map Picker ═══ --}}
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md"
                     x-data="cuacaWidget">
 
                     {{-- Header --}}
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#3a5c3a] text-[#d4f0d4] text-[11px] font-bold flex items-center justify-center flex-shrink-0">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#3a5c3a] text-[#d4f0d4] text-[11px] font-bold flex items-center justify-center flex-shrink-0">
                             <span class="material-symbols-outlined text-[15px]">partly_cloudy_day</span>
                         </span>
                         <div class="flex-1">
-                            <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Lokasi Camping &
-                                Prakiraan Cuaca</h2>
-                            <p class="text-[10px] text-[#9b947c] mt-0.5">Opsional · Untuk rekomendasi perlengkapan</p>
+                            <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Lokasi Destinasi &amp; Prakiraan Cuaca</h2>
+                            <p class="text-[10px] text-[#9b947c] mt-0.5">Opsional · Gunung, pantai, kebun, atau titik mana saja</p>
                         </div>
-                        {{-- Badge opsional --}}
-                        <span
-                            class="text-[9px] font-bold bg-[#3a5c3a]/10 text-[#3a5c3a] border border-[#3a5c3a]/20 px-2.5 py-1 rounded-full">Opsional</span>
+                        <span class="text-[9px] font-bold bg-[#3a5c3a]/10 text-[#3a5c3a] border border-[#3a5c3a]/20 px-2.5 py-1 rounded-full">Opsional</span>
                     </div>
 
-                    <div class="p-6">
+                    <div class="p-6 space-y-4">
 
-                        {{-- Pilih lokasi --}}
-                        <div class="mb-4">
-                            <label
-                                class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Pilih
-                                Lokasi Camping</label>
+                        {{-- ── SEARCH BOX ── --}}
+                        <div>
+                            <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">
+                                Cari Lokasi Destinasi
+                            </label>
                             <div class="relative">
-                                <span
-                                    class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">landscape</span>
-                                <select x-model="lokasiId"
-                                    x-on:change="onLokasiChange()"
-                                    class="w-full pl-10 pr-10 py-3 border-[1.5px] border-[#e0d9c8] rounded-xl text-sm bg-white focus:outline-none focus:border-[#3a5c3a] focus:ring-2 focus:ring-[#3a5c3a]/10 transition-all appearance-none">
-                                    <option value="">— Pilih gunung / lokasi camping —</option>
-                                    @foreach(\App\Http\Controllers\CuacaController::daftarLokasi() as $lok)
-                                        <option value="{{ $lok['id'] }}">{{ $lok['nama'] }}
-                                            ({{ $lok['provinsi'] }})</option>
-                                    @endforeach
-                                </select>
-                                <span
-                                    class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#9b947c] text-[18px] pointer-events-none">expand_more</span>
+                                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">search</span>
+                                <input
+                                    type="text"
+                                    x-model="searchQuery"
+                                    x-on:input.debounce.500ms="cariLokasi()"
+                                    x-on:keydown.escape="tutupDropdown()"
+                                    placeholder="Ketik nama gunung, pantai, desa, kebun..."
+                                    class="w-full pl-10 pr-10 py-3 border-[1.5px] border-[#e0d9c8] rounded-xl text-sm bg-white focus:outline-none focus:border-[#3a5c3a] focus:ring-2 focus:ring-[#3a5c3a]/10 transition-all"
+                                >
+                                {{-- Loading spinner search --}}
+                                <div x-show="loadingSearch" class="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <svg class="animate-spin h-4 w-4 text-[#3a5c3a]" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </div>
+                                {{-- Clear button --}}
+                                <button x-show="searchQuery && !loadingSearch" x-on:click="resetLokasi()"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-[#9b947c] hover:text-[#4d462e] transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">close</span>
+                                </button>
+
+                                {{-- Dropdown hasil search --}}
+                                <div x-show="hasilSearch.length > 0 && dropdownTerbuka" x-cloak class="lokasi-dropdown">
+                                    <template x-for="item in hasilSearch" :key="item.osm_id">
+                                        <div class="lokasi-dropdown-item" x-on:click="pilihLokasi(item)">
+                                            <span class="material-symbols-outlined loc-icon">location_on</span>
+                                            <div>
+                                                <div class="loc-nama" x-text="item.nama_pendek"></div>
+                                                <div class="loc-sub" x-text="item.nama"></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
+                            <p class="text-[10px] text-[#9b947c] mt-1.5">
+                                Atau <button type="button" x-on:click="gunakanGPSSekarang()" class="text-[#3a5c3a] font-semibold hover:underline">gunakan lokasi saat ini</button>
+                            </p>
                         </div>
 
-                        {{-- Info jika belum pilih tanggal --}}
-                        <div x-show="lokasiId && !tglAmbilParent" x-cloak
+                        {{-- ── LOKASI TERPILIH BADGE ── --}}
+                        <div x-show="lokasiTerpilih" x-cloak
+                            class="flex items-center gap-3 px-4 py-3 bg-[#3a5c3a]/8 border border-[#3a5c3a]/20 rounded-xl">
+                            <span class="material-symbols-outlined text-[#3a5c3a] text-[20px]">location_on</span>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-[12px] font-bold text-[#3a5c3a] truncate" x-text="lokasiTerpilih?.nama_pendek"></p>
+                                <p class="text-[10px] text-[#5a7a5a] truncate" x-text="lokasiTerpilih ? `${lokasiTerpilih.lat.toFixed(5)}, ${lokasiTerpilih.lon.toFixed(5)}` : ''"></p>
+                            </div>
+                            <button type="button" x-on:click="resetLokasi()" class="text-[#5a7a5a] hover:text-red-600 transition-colors flex-shrink-0">
+                                <span class="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                        </div>
+
+                        {{-- Info belum pilih tanggal --}}
+                        <div x-show="lokasiTerpilih && !tglAmbilParent" x-cloak
                             class="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs">
                             <span class="material-symbols-outlined text-[16px]">info</span>
                             Pilih tanggal ambil terlebih dahulu untuk melihat prakiraan cuaca.
                         </div>
 
-                        {{-- Loading State --}}
-                        <div x-show="loading" x-cloak class="py-8">
+                        {{-- ── MAP PICKER ── --}}
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <p class="text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52]">Atau Tandai di Peta</p>
+                                <span class="text-[9px] text-[#9b947c] bg-[#f5f3ed] border border-[#e0d9c8] px-2 py-0.5 rounded-full">Klik / drag pin</span>
+                            </div>
+                            <div id="cuaca-map" class="border border-[#e0d9c8]"></div>
+                            <p class="text-[10px] text-[#9b947c] mt-1.5">
+                                Klik di mana saja di peta atau drag pin untuk menentukan lokasi destinasi Anda.
+                            </p>
+                        </div>
+
+                        {{-- ── LOADING CUACA ── --}}
+                        <div x-show="loadingCuaca" x-cloak class="py-6">
                             <div class="flex flex-col items-center gap-3">
-                                <div
-                                    class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3a5c3a]/10 to-[#3a5c3a]/20 flex items-center justify-center">
-                                    <svg class="animate-spin h-5 w-5 text-[#3a5c3a]" fill="none"
-                                        viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10"
-                                            stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor"
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                        </path>
+                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3a5c3a]/10 to-[#3a5c3a]/20 flex items-center justify-center">
+                                    <svg class="animate-spin h-5 w-5 text-[#3a5c3a]" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                 </div>
                                 <p class="text-[12px] text-[#7b6f52]">Mengambil data cuaca...</p>
                             </div>
                         </div>
 
-                        {{-- Error State --}}
-                        <div x-show="error && !loading" x-cloak
+                        {{-- ── ERROR CUACA ── --}}
+                        <div x-show="errorCuaca && !loadingCuaca" x-cloak
                             class="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                            <span
-                                class="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0 mt-0.5">error</span>
-                            <p class="text-[12px] text-red-600" x-text="error"></p>
+                            <span class="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0 mt-0.5">error</span>
+                            <p class="text-[12px] text-red-600" x-text="errorCuaca"></p>
                         </div>
 
-                        {{-- Hasil Cuaca --}}
-                        <div x-show="cuaca && !loading" x-cloak class="space-y-4">
+                        {{-- ── HASIL CUACA ── --}}
+                        <div x-show="cuaca && !loadingCuaca" x-cloak class="space-y-4">
 
                             {{-- Card cuaca utama --}}
                             <div class="rounded-2xl overflow-hidden border"
@@ -213,25 +266,20 @@
                                     'border-[#e0d9c8] bg-gradient-to-br from-[#faf8f2] to-[#f5f3ec]' : cuaca?.level === 'neutral',
                                 }">
 
-                                {{-- Header lokasi --}}
                                 <div class="px-5 pt-4 pb-0 flex items-start justify-between gap-3">
                                     <div>
-                                        <p class="font-syne font-extrabold text-[15px] text-[#1b1c1a]"
-                                            x-text="namaLokasi"></p>
-                                        <p class="text-[10px] text-[#7b6f52]" x-text="provinsiLokasi"></p>
+                                        <p class="font-syne font-extrabold text-[15px] text-[#1b1c1a]" x-text="namaLokasi"></p>
+                                        <p class="text-[10px] text-[#7b6f52]" x-text="koordinatLabel"></p>
                                     </div>
                                     <div class="flex flex-col items-end">
                                         <img :src="cuaca?.icon" class="w-12 h-12 -mt-1" alt="cuaca">
-                                        <span class="text-[10px] text-[#7b6f52] -mt-1"
-                                            x-text="cuaca?.deskripsi"></span>
+                                        <span class="text-[10px] text-[#7b6f52] -mt-1" x-text="cuaca?.deskripsi"></span>
                                     </div>
                                 </div>
 
-                                {{-- Suhu besar --}}
                                 <div class="px-5 pb-4 flex items-end gap-4">
                                     <div>
-                                        <span class="font-syne font-extrabold text-5xl leading-none text-[#1b1c1a]"
-                                            x-text="cuaca?.suhu + '°'"></span>
+                                        <span class="font-syne font-extrabold text-5xl leading-none text-[#1b1c1a]" x-text="cuaca?.suhu + '°'"></span>
                                         <span class="text-[11px] text-[#7b6f52] ml-1">C</span>
                                     </div>
                                     <div class="flex flex-col text-[11px] text-[#7b6f52] mb-1">
@@ -240,8 +288,7 @@
                                     </div>
                                     <div class="flex gap-3 mb-1 ml-auto">
                                         <div class="flex items-center gap-1 text-[11px] text-[#7b6f52]">
-                                            <span
-                                                class="material-symbols-outlined text-[14px]">water_drop</span>
+                                            <span class="material-symbols-outlined text-[14px]">water_drop</span>
                                             <span x-text="cuaca?.kelembaban + '%'"></span>
                                         </div>
                                         <div class="flex items-center gap-1 text-[11px] text-[#7b6f52]">
@@ -251,7 +298,6 @@
                                     </div>
                                 </div>
 
-                                {{-- Pesan peringatan --}}
                                 <div class="px-5 pb-4">
                                     <div class="flex items-start gap-2 rounded-xl px-4 py-3 text-[11px] font-medium leading-relaxed"
                                         :class="{
@@ -272,48 +318,31 @@
                             {{-- Rekomendasi Barang --}}
                             <div x-show="rekomendasi.length > 0">
                                 <div class="flex items-center justify-between mb-3">
-                                    <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#7b6f52]">
-                                        Rekomendasi Perlengkapan
-                                    </p>
-                                    <span
-                                        class="text-[9px] text-[#9b947c] bg-[#f5f3ed] border border-[#e0d9c8] px-2 py-0.5 rounded-full">
-                                        Berdasarkan kondisi cuaca
-                                    </span>
+                                    <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#7b6f52]">Rekomendasi Perlengkapan</p>
+                                    <span class="text-[9px] text-[#9b947c] bg-[#f5f3ed] border border-[#e0d9c8] px-2 py-0.5 rounded-full">Berdasarkan kondisi cuaca</span>
                                 </div>
-
                                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     <template x-for="item in rekomendasi" :key="item.id">
-                                        <div
-                                            class="group relative bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-                                            {{-- Foto --}}
+                                        <div class="group relative bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
                                             <div class="aspect-square bg-[#f5f3ed] overflow-hidden">
-                                                <img
-                                                    :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'"
+                                                <img :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'"
                                                     :alt="item.nama"
                                                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
                                             </div>
-                                            {{-- Info --}}
                                             <div class="p-3">
-                                                <span
-                                                    class="text-[8px] font-bold tracking-[0.1em] uppercase text-[#7b6f52] bg-[#f5f3ed] border border-[#e0d9c8] px-1.5 py-0.5 rounded-md"
-                                                    x-text="item.kategori"></span>
-                                                <p class="font-syne font-bold text-[11px] uppercase leading-tight mt-1.5 text-[#1b1c1a]"
-                                                    x-text="item.nama"></p>
+                                                <span class="text-[8px] font-bold tracking-[0.1em] uppercase text-[#7b6f52] bg-[#f5f3ed] border border-[#e0d9c8] px-1.5 py-0.5 rounded-md" x-text="item.kategori"></span>
+                                                <p class="font-syne font-bold text-[11px] uppercase leading-tight mt-1.5 text-[#1b1c1a]" x-text="item.nama"></p>
                                                 <p class="text-[11px] text-[#4d462e] font-semibold mt-1">
-                                                    <span
-                                                        x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(item.harga)"></span>
+                                                    <span x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(item.harga)"></span>
                                                     <span class="text-[#9b947c] font-normal">/hr</span>
                                                 </p>
-                                                {{-- Tombol tambah ke keranjang --}}
                                                 <a :href="'/katalog/' + item.id"
                                                     class="mt-2 w-full flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[#4d462e]/8 border border-[#4d462e]/15 text-[9px] font-bold tracking-[0.1em] uppercase text-[#4d462e] hover:bg-[#4d462e] hover:text-[#F2E8C6] transition-all duration-200">
                                                     <span class="material-symbols-outlined text-[12px]">add_shopping_cart</span>
                                                     Lihat Detail
                                                 </a>
                                             </div>
-                                            {{-- Stok badge --}}
-                                            <div
-                                                class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-[#e0d9c8] rounded-full px-2 py-0.5 text-[8px] font-bold text-[#4d462e]">
+                                            <div class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-[#e0d9c8] rounded-full px-2 py-0.5 text-[8px] font-bold text-[#4d462e]">
                                                 <span x-text="item.stok"></span> unit
                                             </div>
                                         </div>
@@ -321,30 +350,23 @@
                                 </div>
                             </div>
 
-                            {{-- Jika tidak ada rekomendasi --}}
-                            <div x-show="rekomendasi.length === 0" x-cloak
-                                class="text-center py-4 text-[12px] text-[#9b947c]">
+                            <div x-show="rekomendasi.length === 0" x-cloak class="text-center py-4 text-[12px] text-[#9b947c]">
                                 Tidak ada rekomendasi barang untuk kondisi cuaca ini.
                             </div>
                         </div>
 
-                    </div>
+                    </div>{{-- /p-6 --}}
                 </div>
-                {{-- ═══ END LOKASI CAMPING & CUACA ═══ --}}
+                {{-- ═══ END LOKASI & CUACA ═══ --}}
 
                 {{-- 02 · INVENTARIS GEAR --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-
-                    <div
-                        class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
                         <div class="flex items-center gap-3">
-                            <span
-                                class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center">02</span>
+                            <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center">02</span>
                             <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Inventaris Gear</h2>
                         </div>
-                        <a href="{{ route('katalog') }}"
-                            class="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.12em] uppercase text-[#4d462e] hover:text-[#2e2a1e]">
+                        <a href="{{ route('katalog') }}" class="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.12em] uppercase text-[#4d462e] hover:text-[#2e2a1e]">
                             <span class="material-symbols-outlined text-[15px]">add_circle</span>Tambah Item
                         </a>
                     </div>
@@ -352,11 +374,9 @@
                     <div class="divide-y divide-[#f0ece0]">
                         <template x-if="$store.cart.isEmpty">
                             <div class="py-16 text-center">
-                                <span
-                                    class="material-symbols-outlined text-5xl text-[#c8bfa8] block mb-3">shopping_bag</span>
+                                <span class="material-symbols-outlined text-5xl text-[#c8bfa8] block mb-3">shopping_bag</span>
                                 <p class="text-sm text-[#7b6f52] mb-5">Keranjang masih kosong</p>
-                                <a href="{{ route('katalog') }}"
-                                    class="inline-flex items-center gap-2 px-6 py-2.5 bg-[#4d462e] text-[#F2E8C6] rounded-xl text-[10px] font-syne font-bold uppercase">
+                                <a href="{{ route('katalog') }}" class="inline-flex items-center gap-2 px-6 py-2.5 bg-[#4d462e] text-[#F2E8C6] rounded-xl text-[10px] font-syne font-bold uppercase">
                                     Ke Katalog →
                                 </a>
                             </div>
@@ -364,48 +384,36 @@
 
                         <template x-for="(item, id) in $store.cart.items" :key="id">
                             <div class="flex items-start gap-4 px-6 py-4 hover:bg-[#faf8f2]">
-                                <div
-                                    class="w-[68px] h-[68px] rounded-xl overflow-hidden bg-[#f5f3ed] border border-[#e0d9c8] flex-shrink-0">
-                                    <img :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'"
-                                        :alt="item.nama" class="w-full h-full object-cover">
+                                <div class="w-[68px] h-[68px] rounded-xl overflow-hidden bg-[#f5f3ed] border border-[#e0d9c8] flex-shrink-0">
+                                    <img :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'" :alt="item.nama" class="w-full h-full object-cover">
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <p class="font-syne font-bold text-[14px] uppercase text-[#1b1c1a] leading-tight mb-0.5"
-                                        x-text="item.nama"></p>
+                                    <p class="font-syne font-bold text-[14px] uppercase text-[#1b1c1a] leading-tight mb-0.5" x-text="item.nama"></p>
                                     <p class="text-[11px] text-[#7b6f52] mb-2">
                                         <span x-text="rupiah(item.harga)"></span>/hari
                                         <span class="text-[#c8bfa8] ml-2">·</span>
                                         <span class="text-[#9b947c] ml-1">Stok: <span x-text="item.stok"></span></span>
                                     </p>
                                     <div class="flex items-center gap-2 mb-2">
-                                        <button @click="kurangQty(id)"
-                                            class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors flex items-center justify-center text-[#4a473d] font-bold">
+                                        <button @click="kurangQty(id)" class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors flex items-center justify-center text-[#4a473d] font-bold">
                                             <span class="material-symbols-outlined text-[14px]">remove</span>
                                         </button>
                                         <span class="font-bold text-[13px] w-6 text-center" x-text="item.qty"></span>
-                                        <button @click="tambahQty(id)"
-                                            class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors flex items-center justify-center text-[#4a473d] font-bold"
+                                        <button @click="tambahQty(id)" class="w-7 h-7 rounded-lg border border-[#c8bfa8] hover:bg-[#f5f3ed] transition-colors flex items-center justify-center text-[#4a473d] font-bold"
                                             :class="item.qty >= item.stok ? 'opacity-40 cursor-not-allowed' : ''">
                                             <span class="material-symbols-outlined text-[14px]">add</span>
                                         </button>
-                                        <span x-show="item.qty >= item.stok"
-                                            class="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                                            Maks
-                                        </span>
+                                        <span x-show="item.qty >= item.stok" class="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Maks</span>
                                     </div>
                                     <template x-if="durasi > 0">
-                                        <p class="text-[12px] font-semibold text-[#4d462e]">
-                                            Subtotal:
-                                            <span x-text="rupiah(item.harga * item.qty * durasi)"></span>
-                                        </p>
+                                        <p class="text-[12px] font-semibold text-[#4d462e]">Subtotal: <span x-text="rupiah(item.harga * item.qty * durasi)"></span></p>
                                     </template>
                                     <template x-if="durasi === 0">
                                         <p class="text-[11px] text-[#9b947c]">Pilih durasi untuk lihat subtotal</p>
                                     </template>
                                 </div>
                                 <div class="flex flex-col items-end justify-between h-[68px]">
-                                    <button @click="hapusItem(id)"
-                                        class="text-[#9b947c] hover:text-red-600 transition-colors" title="Hapus item">
+                                    <button @click="hapusItem(id)" class="text-[#9b947c] hover:text-red-600 transition-colors" title="Hapus item">
                                         <span class="material-symbols-outlined text-[18px]">delete</span>
                                     </button>
                                     <p class="text-[12px] font-semibold text-[#4d462e]">
@@ -418,55 +426,40 @@
                     </div>
 
                     <template x-if="!$store.cart.isEmpty">
-                        <div
-                            class="flex justify-between items-center px-6 py-3 bg-[#faf8f2] border-t border-[#e0d9c8]">
+                        <div class="flex justify-between items-center px-6 py-3 bg-[#faf8f2] border-t border-[#e0d9c8]">
                             <span class="text-[10px] text-[#7b6f52] uppercase tracking-widest">Rate / Hari</span>
-                            <span class="font-syne font-extrabold text-[16px] text-[#4d462e]"
-                                x-text="rupiah(subtotalPerHari)">
-                            </span>
+                            <span class="font-syne font-extrabold text-[16px] text-[#4d462e]" x-text="rupiah(subtotalPerHari)"></span>
                         </div>
                     </template>
                 </div>
 
                 {{-- 03 · IDENTITAS & JAMINAN --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">03</span>
-                        <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Identitas &amp; Jaminan
-                        </h2>
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">03</span>
+                        <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Identitas &amp; Jaminan</h2>
                     </div>
                     <div class="p-6 space-y-5">
-                        <div
-                            class="flex items-start gap-3 p-4 bg-[#4d462e]/5 border border-[#4d462e]/15 rounded-xl text-xs text-[#5a584f] leading-relaxed">
-                            <span
-                                class="material-symbols-outlined text-[18px] text-[#4d462e] flex-shrink-0 mt-0.5">info</span>
-                            <span>Kartu identitas fisik Anda akan <strong>ditahan admin</strong> saat pengambilan barang
-                                sebagai jaminan, dan dikembalikan ketika barang kembali dalam kondisi baik.</span>
+                        <div class="flex items-start gap-3 p-4 bg-[#4d462e]/5 border border-[#4d462e]/15 rounded-xl text-xs text-[#5a584f] leading-relaxed">
+                            <span class="material-symbols-outlined text-[18px] text-[#4d462e] flex-shrink-0 mt-0.5">info</span>
+                            <span>Kartu identitas fisik Anda akan <strong>ditahan admin</strong> saat pengambilan barang sebagai jaminan, dan dikembalikan ketika barang kembali dalam kondisi baik.</span>
                         </div>
 
                         <div>
-                            <label
-                                class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-3">Jenis
-                                Identitas</label>
+                            <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-3">Jenis Identitas</label>
                             <div class="grid grid-cols-3 gap-3">
                                 @foreach ([['val' => 'KTP', 'icon' => 'badge', 'label' => 'KTP'], ['val' => 'SIM', 'icon' => 'directions_car', 'label' => 'SIM'], ['val' => 'PELAJAR', 'icon' => 'school', 'label' => 'Pelajar']] as $opt)
                                     <label class="cursor-pointer">
-                                        <input type="radio" x-model="jenisIdentitas" value="{{ $opt['val'] }}"
-                                            class="sr-only">
+                                        <input type="radio" x-model="jenisIdentitas" value="{{ $opt['val'] }}" class="sr-only">
                                         <div class="flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
                                             :class="jenisIdentitas === '{{ $opt['val'] }}'
                                                 ? 'border-[#4d462e] bg-[#4d462e]/5 shadow-[0_0_0_3px_rgba(77,70,46,0.08)]'
                                                 : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
                                             <div class="w-11 h-11 rounded-xl flex items-center justify-center transition-colors"
                                                 :class="jenisIdentitas === '{{ $opt['val'] }}' ? 'bg-[#4d462e]/10' : 'bg-[#f5f3ed]'">
-                                                <span
-                                                    class="material-symbols-outlined text-[20px] text-[#4d462e]">{{ $opt['icon'] }}</span>
+                                                <span class="material-symbols-outlined text-[20px] text-[#4d462e]">{{ $opt['icon'] }}</span>
                                             </div>
-                                            <span
-                                                class="font-syne font-bold text-[11px] tracking-[0.08em] uppercase text-[#1b1c1a]">{{ $opt['label'] }}</span>
+                                            <span class="font-syne font-bold text-[11px] tracking-[0.08em] uppercase text-[#1b1c1a]">{{ $opt['label'] }}</span>
                                         </div>
                                     </label>
                                 @endforeach
@@ -474,28 +467,20 @@
                         </div>
 
                         <div>
-                            <label
-                                class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">
+                            <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">
                                 Foto <span x-text="jenisIdentitas"></span>
                             </label>
-                            <div x-on:click="document.getElementById('foto_identitas').click()"
-                                class="cursor-pointer">
+                            <div x-on:click="document.getElementById('foto_identitas').click()" class="cursor-pointer">
                                 <div x-show="!fotoPreview"
                                     class="border-2 border-dashed border-[#c8bfa8] rounded-2xl p-10 text-center hover:border-[#4d462e] hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
-                                    <span
-                                        class="material-symbols-outlined text-[40px] text-[#c8bfa8] block mb-3">upload_file</span>
-                                    <p class="text-[14px] font-semibold text-[#4a473d]">Klik untuk upload foto <span
-                                            x-text="jenisIdentitas"></span></p>
+                                    <span class="material-symbols-outlined text-[40px] text-[#c8bfa8] block mb-3">upload_file</span>
+                                    <p class="text-[14px] font-semibold text-[#4a473d]">Klik untuk upload foto <span x-text="jenisIdentitas"></span></p>
                                     <p class="text-[11px] text-[#9b947c] mt-1">JPG, PNG, WEBP — maks. 5 MB</p>
                                 </div>
-                                <div x-show="fotoPreview"
-                                    class="upload-preview-wrap relative rounded-2xl overflow-hidden border border-[#e0d9c8]">
+                                <div x-show="fotoPreview" class="upload-preview-wrap relative rounded-2xl overflow-hidden border border-[#e0d9c8]">
                                     <img :src="fotoPreview" class="w-full max-h-52 object-cover block">
-                                    <div
-                                        class="upload-overlay absolute inset-0 bg-black/45 flex items-center justify-center opacity-0 transition-opacity duration-200">
-                                        <span
-                                            class="font-syne font-bold text-white text-[11px] tracking-[0.15em] uppercase">Ganti
-                                            Foto</span>
+                                    <div class="upload-overlay absolute inset-0 bg-black/45 flex items-center justify-center opacity-0 transition-opacity duration-200">
+                                        <span class="font-syne font-bold text-white text-[11px] tracking-[0.15em] uppercase">Ganti Foto</span>
                                     </div>
                                 </div>
                             </div>
@@ -504,82 +489,55 @@
                 </div>
 
                 {{-- 04 · METODE PEMBAYARAN --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">04</span>
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">04</span>
                         <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Metode Pembayaran</h2>
                     </div>
                     <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {{-- Midtrans --}}
                         <label class="cursor-pointer">
                             <input type="radio" x-model="metodePembayaran" value="midtrans" class="sr-only">
                             <div class="p-5 border-2 rounded-2xl transition-all duration-200 h-full hover:-translate-y-0.5"
-                                :class="metodePembayaran === 'midtrans'
-                                    ? 'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]'
-                                    : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
+                                :class="metodePembayaran === 'midtrans' ? 'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]' : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
                                 <div class="flex items-start justify-between mb-4">
                                     <div class="flex items-center gap-3">
-                                        <div
-                                            class="w-10 h-10 rounded-xl bg-[#4d462e]/10 flex items-center justify-center">
-                                            <span
-                                                class="material-symbols-outlined text-[20px] text-[#4d462e]">credit_card</span>
+                                        <div class="w-10 h-10 rounded-xl bg-[#4d462e]/10 flex items-center justify-center">
+                                            <span class="material-symbols-outlined text-[20px] text-[#4d462e]">credit_card</span>
                                         </div>
-                                        <span
-                                            class="font-syne font-extrabold text-[13px] uppercase text-[#1b1c1a]">Cashless</span>
+                                        <span class="font-syne font-extrabold text-[13px] uppercase text-[#1b1c1a]">Cashless</span>
                                     </div>
                                     <div class="w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors"
                                         :class="metodePembayaran === 'midtrans' ? 'border-[#4d462e]' : 'border-[#c8bfa8]'">
-                                        <div x-show="metodePembayaran === 'midtrans'"
-                                            class="w-2 h-2 rounded-full bg-[#4d462e]"></div>
+                                        <div x-show="metodePembayaran === 'midtrans'" class="w-2 h-2 rounded-full bg-[#4d462e]"></div>
                                     </div>
                                 </div>
-                                <p class="text-[11px] text-[#7b6f52] leading-relaxed mb-3">
-                                    Transfer bank, QRIS, e-wallet via <strong class="text-[#4a473d]">Midtrans</strong>.
-                                    Popup pembayaran muncul langsung setelah checkout.
-                                </p>
+                                <p class="text-[11px] text-[#7b6f52] leading-relaxed mb-3">Transfer bank, QRIS, e-wallet via <strong class="text-[#4a473d]">Midtrans</strong>. Popup pembayaran muncul langsung setelah checkout.</p>
                                 <div class="flex flex-wrap gap-1.5">
                                     @foreach (['BCA', 'BNI', 'BRI', 'QRIS', 'GoPay', 'OVO'] as $m)
-                                        <span
-                                            class="text-[9px] font-bold bg-[#4d462e]/8 text-[#4d462e] border border-[#4d462e]/15 px-2 py-0.5 rounded-md">{{ $m }}</span>
+                                        <span class="text-[9px] font-bold bg-[#4d462e]/8 text-[#4d462e] border border-[#4d462e]/15 px-2 py-0.5 rounded-md">{{ $m }}</span>
                                     @endforeach
                                 </div>
                             </div>
                         </label>
-
-                        {{-- Tunai --}}
                         <label class="cursor-pointer">
                             <input type="radio" x-model="metodePembayaran" value="tunai" class="sr-only">
                             <div class="p-5 border-2 rounded-2xl transition-all duration-200 h-full hover:-translate-y-0.5"
-                                :class="metodePembayaran === 'tunai'
-                                    ? 'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]'
-                                    : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
+                                :class="metodePembayaran === 'tunai' ? 'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]' : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
                                 <div class="flex items-start justify-between mb-4">
                                     <div class="flex items-center gap-3">
-                                        <div
-                                            class="w-10 h-10 rounded-xl bg-[#4d462e]/10 flex items-center justify-center">
-                                            <span
-                                                class="material-symbols-outlined text-[20px] text-[#4d462e]">payments</span>
+                                        <div class="w-10 h-10 rounded-xl bg-[#4d462e]/10 flex items-center justify-center">
+                                            <span class="material-symbols-outlined text-[20px] text-[#4d462e]">payments</span>
                                         </div>
-                                        <span class="font-syne font-extrabold text-[13px] uppercase text-[#1b1c1a]">COD
-                                            / Tunai</span>
+                                        <span class="font-syne font-extrabold text-[13px] uppercase text-[#1b1c1a]">COD / Tunai</span>
                                     </div>
                                     <div class="w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors"
                                         :class="metodePembayaran === 'tunai' ? 'border-[#4d462e]' : 'border-[#c8bfa8]'">
-                                        <div x-show="metodePembayaran === 'tunai'"
-                                            class="w-2 h-2 rounded-full bg-[#4d462e]"></div>
+                                        <div x-show="metodePembayaran === 'tunai'" class="w-2 h-2 rounded-full bg-[#4d462e]"></div>
                                     </div>
                                 </div>
-                                <p class="text-[11px] text-[#7b6f52] leading-relaxed mb-3">
-                                    Bayar langsung di toko saat pengambilan. Stok berkurang setelah <strong
-                                        class="text-[#4a473d]">admin konfirmasi</strong>.
-                                </p>
-                                <div
-                                    class="flex items-start gap-2 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                                    <span
-                                        class="material-symbols-outlined text-[14px] flex-shrink-0 mt-px">schedule</span>
+                                <p class="text-[11px] text-[#7b6f52] leading-relaxed mb-3">Bayar langsung di toko saat pengambilan. Stok berkurang setelah <strong class="text-[#4a473d]">admin konfirmasi</strong>.</p>
+                                <div class="flex items-start gap-2 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                                    <span class="material-symbols-outlined text-[14px] flex-shrink-0 mt-px">schedule</span>
                                     Auto-batal jika tidak dikonfirmasi admin hingga H+1 tanggal ambil.
                                 </div>
                             </div>
@@ -588,50 +546,28 @@
                 </div>
 
                 {{-- 05 · E-KONTRAK --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">05</span>
-                        <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Perjanjian E-Kontrak
-                        </h2>
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">05</span>
+                        <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Perjanjian E-Kontrak</h2>
                     </div>
                     <div class="p-6">
-                        <div
-                            class="h-52 overflow-y-auto scrollbar-hide bg-[#faf8f2] border border-[#e0d9c8] rounded-xl p-5 text-[12px] text-[#5a584f] leading-relaxed space-y-3 mb-5">
-                            <p class="font-syne font-bold text-[11px] tracking-[0.1em] uppercase text-[#1b1c1a]">Syarat
-                                dan Ketentuan Penyewaan</p>
-                            <p><strong class="text-[#1b1c1a]">1. KEWAJIBAN PENYEWA</strong><br>
-                                Penyewa wajib menjaga barang sewaan dalam kondisi baik dan mengembalikan tepat waktu.
-                                Kerusakan akibat kelalaian penyewa menjadi tanggung jawab penyewa sepenuhnya.</p>
-                            <p><strong class="text-[#1b1c1a]">2. JAMINAN IDENTITAS</strong><br>
-                                Kartu identitas fisik penyewa akan ditahan selama masa sewa. Dikembalikan setelah semua
-                                barang kembali dalam kondisi baik.</p>
-                            <p><strong class="text-[#1b1c1a]">3. KETERLAMBATAN PENGEMBALIAN</strong><br>
-                                Keterlambatan dikenakan denda sebesar harga sewa per hari, dihitung mulai H+1 tanggal
-                                kembali.</p>
-                            <p><strong class="text-[#1b1c1a]">4. KERUSAKAN BARANG</strong><br>
-                                Kerusakan dinilai admin saat pengembalian. Penyewa wajib membayar biaya perbaikan atau
-                                penggantian.</p>
-                            <p><strong class="text-[#1b1c1a]">5. PEMBATALAN</strong><br>
-                                Midtrans: pembatalan setelah lunas dikenakan biaya admin 10%. Tunai: dapat dibatalkan
-                                sebelum konfirmasi admin tanpa biaya.</p>
-                            <p><strong class="text-[#1b1c1a]">6. FORCE MAJEURE</strong><br>
-                                Majelis Rental tidak bertanggung jawab atas gangguan layanan akibat bencana alam atau
-                                kejadian di luar kendali manajemen.</p>
+                        <div class="h-52 overflow-y-auto scrollbar-hide bg-[#faf8f2] border border-[#e0d9c8] rounded-xl p-5 text-[12px] text-[#5a584f] leading-relaxed space-y-3 mb-5">
+                            <p class="font-syne font-bold text-[11px] tracking-[0.1em] uppercase text-[#1b1c1a]">Syarat dan Ketentuan Penyewaan</p>
+                            <p><strong class="text-[#1b1c1a]">1. KEWAJIBAN PENYEWA</strong><br>Penyewa wajib menjaga barang sewaan dalam kondisi baik dan mengembalikan tepat waktu. Kerusakan akibat kelalaian penyewa menjadi tanggung jawab penyewa sepenuhnya.</p>
+                            <p><strong class="text-[#1b1c1a]">2. JAMINAN IDENTITAS</strong><br>Kartu identitas fisik penyewa akan ditahan selama masa sewa. Dikembalikan setelah semua barang kembali dalam kondisi baik.</p>
+                            <p><strong class="text-[#1b1c1a]">3. KETERLAMBATAN PENGEMBALIAN</strong><br>Keterlambatan dikenakan denda sebesar harga sewa per hari, dihitung mulai H+1 tanggal kembali.</p>
+                            <p><strong class="text-[#1b1c1a]">4. KERUSAKAN BARANG</strong><br>Kerusakan dinilai admin saat pengembalian. Penyewa wajib membayar biaya perbaikan atau penggantian.</p>
+                            <p><strong class="text-[#1b1c1a]">5. PEMBATALAN</strong><br>Midtrans: pembatalan setelah lunas dikenakan biaya admin 10%. Tunai: dapat dibatalkan sebelum konfirmasi admin tanpa biaya.</p>
+                            <p><strong class="text-[#1b1c1a]">6. FORCE MAJEURE</strong><br>Majelis Rental tidak bertanggung jawab atas gangguan layanan akibat bencana alam atau kejadian di luar kendali manajemen.</p>
                         </div>
-
-                        <label class="flex items-start gap-3 cursor-pointer select-none"
-                            x-on:click="setuju = !setuju">
+                        <label class="flex items-start gap-3 cursor-pointer select-none" x-on:click="setuju = !setuju">
                             <div class="flex-shrink-0 mt-0.5 w-[22px] h-[22px] border-2 rounded-lg flex items-center justify-center transition-all duration-200"
                                 :class="setuju ? 'bg-[#4d462e] border-[#4d462e]' : 'border-[#c8bfa8] hover:border-[#4d462e]/60'">
-                                <span x-show="setuju"
-                                    class="material-symbols-outlined text-[#F2E8C6] text-[14px]">check</span>
+                                <span x-show="setuju" class="material-symbols-outlined text-[#F2E8C6] text-[14px]">check</span>
                             </div>
                             <p class="text-[13px] text-[#4a473d] leading-relaxed">
-                                Saya telah membaca, memahami, dan menyetujui seluruh syarat dan ketentuan penyewaan
-                                Majelis Rental. Saya bertanggung jawab penuh atas barang yang disewa.
+                                Saya telah membaca, memahami, dan menyetujui seluruh syarat dan ketentuan penyewaan Majelis Rental. Saya bertanggung jawab penuh atas barang yang disewa.
                             </p>
                         </label>
                     </div>
@@ -642,7 +578,6 @@
             <div class="xl:w-[320px] flex-shrink-0 w-full">
                 <div class="sticky top-20 flex flex-col gap-4">
 
-                    {{-- Rincian biaya --}}
                     <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-md">
                         <div class="bg-gradient-to-br from-[#2e2a1e] to-[#4d462e] px-6 py-5">
                             <p class="text-[9px] tracking-[0.22em] uppercase text-[#F2E8C6]/60 mb-1">Rincian Biaya</p>
@@ -654,14 +589,11 @@
                         <div class="p-5">
                             <div class="space-y-2.5 mb-4">
                                 <template x-for="(item, id) in $store.cart.items" :key="id">
-                                    <div
-                                        class="flex justify-between items-start gap-3 pb-2.5 border-b border-[#f0ece0]">
+                                    <div class="flex justify-between items-start gap-3 pb-2.5 border-b border-[#f0ece0]">
                                         <div class="min-w-0">
-                                            <p class="font-syne font-bold text-[11px] uppercase tracking-tight text-[#1b1c1a] truncate"
-                                                x-text="item.nama"></p>
+                                            <p class="font-syne font-bold text-[11px] uppercase tracking-tight text-[#1b1c1a] truncate" x-text="item.nama"></p>
                                             <p class="text-[10px] text-[#9b947c]">
-                                                <span x-text="item.qty"></span> unit × <span
-                                                    x-text="durasi || '?'"></span> hari
+                                                <span x-text="item.qty"></span> unit × <span x-text="durasi || '?'"></span> hari
                                             </p>
                                         </div>
                                         <span class="font-semibold text-[12px] text-[#4d462e] flex-shrink-0"
@@ -672,7 +604,6 @@
                                     <p class="text-[11px] text-[#9b947c] text-center py-2">Keranjang masih kosong</p>
                                 </template>
                             </div>
-
                             <div class="space-y-1.5 text-[12px] mb-4">
                                 <div class="flex justify-between">
                                     <span class="text-[#7b6f52]">Biaya Admin</span>
@@ -683,25 +614,18 @@
                                     <span class="text-[#4a473d] font-semibold">Identitas Fisik</span>
                                 </div>
                             </div>
-
                             <div class="flex justify-between items-center text-[12px] mb-2">
                                 <span class="text-[#7b6f52]">Rate / Hari</span>
                                 <span class="font-semibold text-[#4a473d]" x-text="rupiah(subtotalPerHari)"></span>
                             </div>
-
                             <div class="h-px bg-[#e0d9c8] my-3"></div>
-
                             <div class="flex items-baseline justify-between mb-1">
-                                <span
-                                    class="text-[10px] font-bold tracking-[0.15em] uppercase text-[#7b6f52]">Total</span>
+                                <span class="text-[10px] font-bold tracking-[0.15em] uppercase text-[#7b6f52]">Total</span>
                                 <span class="font-syne font-extrabold text-[26px] text-[#4d462e] leading-none"
                                     x-text="durasi > 0 && !$store.cart.isEmpty ? rupiah(totalSewa) : 'Rp —'"></span>
                             </div>
-                            <p class="text-[9px] text-[#9b947c] tracking-[0.1em] uppercase mb-4">*Belum termasuk denda
-                                keterlambatan</p>
-
-                            <div
-                                class="flex items-center gap-2.5 bg-[#faf8f2] border border-[#e0d9c8] rounded-xl px-4 py-3">
+                            <p class="text-[9px] text-[#9b947c] tracking-[0.1em] uppercase mb-4">*Belum termasuk denda keterlambatan</p>
+                            <div class="flex items-center gap-2.5 bg-[#faf8f2] border border-[#e0d9c8] rounded-xl px-4 py-3">
                                 <span class="material-symbols-outlined text-[16px] text-[#4d462e]"
                                     x-text="metodePembayaran === 'midtrans' ? 'credit_card' : 'payments'"></span>
                                 <span class="text-[10px] font-bold tracking-[0.1em] uppercase text-[#4a473d]"
@@ -710,68 +634,50 @@
                         </div>
                     </div>
 
-                    {{-- Form hidden — diisi via syncHidden() sebelum submit --}}
-                    <form id="form-checkout" action="{{ route('checkout.proses') }}" method="POST"
-                        enctype="multipart/form-data">
+                    <form id="form-checkout" action="{{ route('checkout.proses') }}" method="POST" enctype="multipart/form-data">
                         @csrf
-                        <input type="hidden" id="input_tgl_ambil" name="tanggal_ambil">
+                        <input type="hidden" id="input_tgl_ambil"   name="tanggal_ambil">
                         <input type="hidden" id="input_tgl_kembali" name="tanggal_kembali">
-                        <input type="hidden" id="input_metode" name="metode_pembayaran">
-                        <input type="hidden" id="input_jenis_id" name="jenis_identitas">
-                        <input type="hidden" id="input_durasi" name="durasi">
-                        <input type="file" id="foto_identitas" name="foto_identitas" accept="image/*"
-                            class="sr-only" x-on:change="handleFoto($event)">
+                        <input type="hidden" id="input_metode"      name="metode_pembayaran">
+                        <input type="hidden" id="input_jenis_id"    name="jenis_identitas">
+                        <input type="hidden" id="input_durasi"      name="durasi">
+                        <input type="file"   id="foto_identitas"    name="foto_identitas" accept="image/*" class="sr-only" x-on:change="handleFoto($event)">
                     </form>
 
-                    {{-- Error dari server (AJAX) --}}
-                    <div x-show="submitError" x-cloak
-                        class="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+                    <div x-show="submitError" x-cloak class="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
                         <span class="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0 mt-0.5">error</span>
                         <p class="text-[12px] text-red-600 leading-relaxed" x-text="submitError"></p>
                     </div>
 
-                    <button type="button" x-on:click="submitForm()"
-                        :disabled="!bisaSubmit || loading"
+                    <button type="button" x-on:click="submitForm()" :disabled="!bisaSubmit || loading"
                         class="w-full py-4 rounded-2xl font-syne font-extrabold text-[12px] tracking-[0.15em] uppercase border-0 transition-all duration-300"
                         :class="bisaSubmit && !loading
                             ? 'bg-gradient-to-r from-[#2e2a1e] to-[#4d462e] text-[#F2E8C6] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#4d462e]/30 cursor-pointer'
                             : 'bg-[#e0d9c8] text-[#9b947c] cursor-not-allowed'">
-
                         <span x-show="loading" class="flex items-center justify-center gap-2">
                             <svg class="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                    stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                </path>
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                             Memproses...
                         </span>
-
-                        <span x-show="!loading"
-                            x-text="metodePembayaran === 'midtrans' ? 'Lanjut ke Pembayaran →' : 'Konfirmasi Pesanan →'">
-                        </span>
+                        <span x-show="!loading" x-text="metodePembayaran === 'midtrans' ? 'Lanjut ke Pembayaran →' : 'Konfirmasi Pesanan →'"></span>
                     </button>
 
-                    {{-- Checklist persyaratan --}}
                     <div class="bg-white border border-[#e0d9c8] rounded-2xl p-5">
-                        <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#9b947c] mb-4">Persyaratan
-                            Checkout</p>
+                        <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#9b947c] mb-4">Persyaratan Checkout</p>
                         <div class="space-y-2.5">
-                            <template
-                                x-for="item in [
+                            <template x-for="item in [
                                     { label: 'Durasi sewa dipilih',     done: durasi > 0 },
                                     { label: 'Keranjang tidak kosong',  done: $store.cart.count > 0 },
                                     { label: 'Foto identitas diupload', done: fotoFile !== null },
                                     { label: 'Perjanjian disetujui',    done: setuju },
-                                ]"
-                                :key="item.label">
+                                ]" :key="item.label">
                                 <div class="flex items-center gap-2.5 text-[11px] font-medium transition-colors duration-200"
                                     :class="item.done ? 'text-green-700' : 'text-[#9b947c]'">
                                     <div class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200"
                                         :class="item.done ? 'bg-green-100' : 'bg-[#f5f3ed]'">
-                                        <span class="material-symbols-outlined text-[12px]"
-                                            x-text="item.done ? 'check' : 'radio_button_unchecked'"></span>
+                                        <span class="material-symbols-outlined text-[12px]" x-text="item.done ? 'check' : 'radio_button_unchecked'"></span>
                                     </div>
                                     <span x-text="item.label"></span>
                                 </div>
@@ -779,11 +685,9 @@
                         </div>
                     </div>
 
-                    <a href="{{ route('keranjang.index') }}"
-                        class="block text-center text-[10px] text-[#9b947c] tracking-[0.12em] uppercase py-2 hover:text-[#4d462e] transition-colors">
+                    <a href="{{ route('keranjang.index') }}" class="block text-center text-[10px] text-[#9b947c] tracking-[0.12em] uppercase py-2 hover:text-[#4d462e] transition-colors">
                         ← Kembali ke Keranjang
                     </a>
-
                 </div>
             </div>
 
@@ -791,284 +695,380 @@
     </div>
 
     @include('user.components.footer')
+
+    {{-- Leaflet JS — map picker --}}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </body>
 
 <script>
-    document.addEventListener('alpine:init', () => {
+document.addEventListener('alpine:init', () => {
 
-        // ═══════════════════════════════════════════════════════════
-        //  CUACA WIDGET — Alpine Component terpisah
-        //  Menggunakan x-data="cuacaWidget" pada element-nya
-        // ═══════════════════════════════════════════════════════════
-        Alpine.data('cuacaWidget', () => ({
-            lokasiId: '',
-            loading: false,
-            error: null,
-            cuaca: null,
-            rekomendasi: [],
-            namaLokasi: '',
-            provinsiLokasi: '',
+    // =========================================================================
+    //  CUACA WIDGET — Map Picker + Free Search (Nominatim)
+    // =========================================================================
+    Alpine.data('cuacaWidget', () => ({
 
-            // Reactive binding ke tglAmbil dari parent checkout component.
-            // Kita gunakan getter yang membaca dari Alpine.$root scope.
-            get tglAmbilParent() {
-                // Cari parent Alpine component dengan property tglAmbil
-                try {
-                    const parentEl = this.$el.closest('[x-data="checkout"]');
-                    if (parentEl && parentEl._x_dataStack) {
-                        for (const data of parentEl._x_dataStack) {
-                            if (data.tglAmbil !== undefined) return data.tglAmbil;
-                        }
-                    }
-                } catch (_) {}
-                return null;
-            },
+        // ── Search ────────────────────────────────────────────────────────────
+        searchQuery:    '',
+        hasilSearch:    [],
+        loadingSearch:  false,
+        dropdownTerbuka: false,
 
-            onLokasiChange() {
-                if (this.lokasiId && this.tglAmbilParent) {
-                    this.fetchCuaca();
-                } else {
-                    // Reset jika lokasi dikosongkan
-                    if (!this.lokasiId) {
-                        this.cuaca = null;
-                        this.rekomendasi = [];
-                        this.error = null;
-                    }
-                }
-            },
+        // ── Lokasi terpilih ───────────────────────────────────────────────────
+        lokasiTerpilih: null,   // { nama_pendek, lat, lon }
 
-            async fetchCuaca() {
-                if (!this.lokasiId || !this.tglAmbilParent) return;
+        // ── Cuaca ─────────────────────────────────────────────────────────────
+        cuaca:         null,
+        rekomendasi:   [],
+        namaLokasi:    '',
+        koordinatLabel: '',
+        loadingCuaca:  false,
+        errorCuaca:    null,
 
-                this.loading = true;
-                this.error = null;
-                this.cuaca = null;
-                this.rekomendasi = [];
+        // ── Map ───────────────────────────────────────────────────────────────
+        _map:    null,
+        _marker: null,
 
-                try {
-                    const params = new URLSearchParams({
-                        lokasi_id: this.lokasiId,
-                        tanggal_ambil: this.tglAmbilParent,
-                    });
+        // ── Init ──────────────────────────────────────────────────────────────
+        init() {
+            this.$nextTick(() => this.initMap());
 
-                    const res = await fetch(`/api/cuaca?${params}`, {
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                        }
-                    });
+            // Tutup dropdown saat klik luar
+            document.addEventListener('click', (e) => {
+                if (!this.$el.contains(e.target)) this.dropdownTerbuka = false;
+            });
+        },
 
-                    const data = await res.json();
-
-                    if (!res.ok) {
-                        this.error = data.message || 'Gagal mengambil data cuaca.';
-                        return;
-                    }
-
-                    this.cuaca = data.cuaca;
-                    this.rekomendasi = data.rekomendasi || [];
-                    this.namaLokasi = data.lokasi;
-                    this.provinsiLokasi = data.provinsi;
-
-                } catch (e) {
-                    this.error = 'Terjadi kesalahan jaringan. Periksa koneksi Anda.';
-                } finally {
-                    this.loading = false;
-                }
-            },
-        }));
-
-        // ═══════════════════════════════════════════════════════════
-        //  CHECKOUT COMPONENT
-        // ═══════════════════════════════════════════════════════════
-        Alpine.data('checkout', () => ({
-
-            // ── State ────────────────────────────────────────────────────
-            tglAmbil: '',
-            tglKembali: '',
-            jenisIdentitas: 'KTP',
-            fotoPreview: null,
-            fotoFile: null,
-            metodePembayaran: 'midtrans',
-            setuju: false,
-
-            loading: false,
-            submitError: null,
-
-            // ── Init ─────────────────────────────────────────────────────
-            async init() {
-                await Alpine.store('cart').refresh();
-            },
-
-            // ── Trigger refresh cuaca saat tanggal ambil berubah ─────────
-            onDateOrLokasiChange() {
-                // Dispatch ke cuacaWidget yang ada di dalam scope ini
-                const cuacaEl = this.$el.querySelector('[x-data="cuacaWidget"]');
-                if (cuacaEl && cuacaEl._x_dataStack) {
-                    for (const data of cuacaEl._x_dataStack) {
-                        if (typeof data.fetchCuaca === 'function' && data.lokasiId) {
-                            data.fetchCuaca();
-                            break;
-                        }
+        // ── Ambil tglAmbil dari parent checkout ───────────────────────────────
+        get tglAmbilParent() {
+            try {
+                const parentEl = this.$el.closest('[x-data="checkout"]');
+                if (parentEl?._x_dataStack) {
+                    for (const data of parentEl._x_dataStack) {
+                        if (data.tglAmbil !== undefined) return data.tglAmbil;
                     }
                 }
-            },
+            } catch (_) {}
+            return null;
+        },
 
-            // ── Computed ─────────────────────────────────────────────────
-            get subtotalPerHari() {
-                return Object.values(Alpine.store('cart').items)
-                    .reduce((s, i) => s + i.harga * i.qty, 0);
-            },
+        // ── Map Leaflet ───────────────────────────────────────────────────────
+        initMap() {
+            if (this._map) return;
 
-            get durasi() {
-                if (!this.tglAmbil || !this.tglKembali) return 0;
-                const d = Math.round(
-                    (new Date(this.tglKembali) - new Date(this.tglAmbil)) / 86400000
-                );
-                return d > 0 ? d : 0;
-            },
+            // Pusat default: Indonesia
+            this._map = L.map('cuaca-map', { zoomControl: true }).setView([-2.5, 118], 5);
 
-            get totalSewa() {
-                return this.subtotalPerHari * (this.durasi || 0);
-            },
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                maxZoom: 18,
+            }).addTo(this._map);
 
-            get bisaSubmit() {
-                return this.durasi > 0 &&
-                    Alpine.store('cart').count > 0 &&
-                    this.jenisIdentitas !== '' &&
-                    this.fotoFile !== null &&
-                    this.setuju;
-            },
+            // Klik di peta → set marker & reverse geocode
+            this._map.on('click', (e) => {
+                const { lat, lng } = e.latlng;
+                this.setMarkerDanReverseGeocode(lat, lng);
+            });
+        },
 
-            // ── Mutasi Cart ──────────────────────────────────────────────
-            hapusItem(id) {
-                Alpine.store('cart').hapus(id);
-                this.autoRefresh();
-            },
+        setMarker(lat, lon) {
+            if (this._marker) {
+                this._marker.setLatLng([lat, lon]);
+            } else {
+                this._marker = L.marker([lat, lon], { draggable: true }).addTo(this._map);
+                this._marker.on('dragend', (e) => {
+                    const { lat, lng } = e.target.getLatLng();
+                    this.setMarkerDanReverseGeocode(lat, lng);
+                });
+            }
+            this._map.setView([lat, lon], 13);
+        },
 
-            tambahQty(id) {
-                const item = Alpine.store('cart').items[id];
-                if (!item) return;
-                if (item.qty < item.stok) {
-                    Alpine.store('cart').update(id, item.qty + 1);
-                    this.autoRefresh();
-                } else {
-                    Alpine.store('toast').flash(
-                        `Stok "${item.nama}" sudah maksimal (${item.stok} unit).`, 'error'
-                    );
+        async setMarkerDanReverseGeocode(lat, lon) {
+            this.setMarker(lat, lon);
+            this.loadingSearch = true;
+
+            try {
+                const res  = await fetch(`/api/lokasi/reverse?lat=${lat}&lon=${lon}`, {
+                    headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
+                });
+                const data = await res.json();
+
+                this.lokasiTerpilih = {
+                    nama_pendek: data.nama_pendek ?? data.nama ?? 'Titik terpilih',
+                    nama:        data.nama ?? '',
+                    lat,
+                    lon,
+                };
+                this.searchQuery    = this.lokasiTerpilih.nama_pendek;
+                this.hasilSearch    = [];
+                this.dropdownTerbuka = false;
+
+                this.fetchCuaca();
+            } catch (_) {
+                // Fallback tanpa nama
+                this.lokasiTerpilih = { nama_pendek: `${lat.toFixed(5)}, ${lon.toFixed(5)}`, lat, lon };
+                this.fetchCuaca();
+            } finally {
+                this.loadingSearch = false;
+            }
+        },
+
+        // ── Cari Lokasi via Nominatim ─────────────────────────────────────────
+        async cariLokasi() {
+            const q = this.searchQuery.trim();
+            if (q.length < 3) {
+                this.hasilSearch    = [];
+                this.dropdownTerbuka = false;
+                return;
+            }
+
+            this.loadingSearch  = true;
+            this.dropdownTerbuka = true;
+
+            try {
+                const res  = await fetch(`/api/lokasi/cari?q=${encodeURIComponent(q)}`, {
+                    headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
+                });
+                const data = await res.json();
+                this.hasilSearch = data.hasil ?? [];
+            } catch (_) {
+                this.hasilSearch = [];
+            } finally {
+                this.loadingSearch = false;
+            }
+        },
+
+        // ── Pilih dari dropdown ───────────────────────────────────────────────
+        pilihLokasi(item) {
+            this.lokasiTerpilih  = item;
+            this.searchQuery     = item.nama_pendek;
+            this.hasilSearch     = [];
+            this.dropdownTerbuka = false;
+
+            this.setMarker(item.lat, item.lon);
+            this.fetchCuaca();
+        },
+
+        tutupDropdown() {
+            this.dropdownTerbuka = false;
+        },
+
+        // ── Gunakan GPS saat ini ──────────────────────────────────────────────
+        gunakanGPSSekarang() {
+            if (!navigator.geolocation) {
+                alert('Browser Anda tidak mendukung geolokasi.');
+                return;
+            }
+            this.loadingSearch = true;
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const { latitude: lat, longitude: lon } = pos.coords;
+                    this.setMarkerDanReverseGeocode(lat, lon);
+                },
+                () => {
+                    this.loadingSearch = false;
+                    alert('Gagal mendapatkan lokasi. Pastikan izin lokasi diaktifkan.');
                 }
-            },
+            );
+        },
 
-            kurangQty(id) {
-                const item = Alpine.store('cart').items[id];
-                if (!item) return;
-                if (item.qty > 1) {
-                    Alpine.store('cart').update(id, item.qty - 1);
-                    this.autoRefresh();
-                } else {
-                    Alpine.store('cart').hapus(id);
-                    this.autoRefresh();
-                }
-            },
+        // ── Reset ─────────────────────────────────────────────────────────────
+        resetLokasi() {
+            this.lokasiTerpilih  = null;
+            this.searchQuery     = '';
+            this.hasilSearch     = [];
+            this.dropdownTerbuka = false;
+            this.cuaca           = null;
+            this.rekomendasi     = [];
+            this.errorCuaca      = null;
 
-            autoRefresh() {
-                setTimeout(() => window.location.reload(), 600);
-            },
+            if (this._marker) {
+                this._map.removeLayer(this._marker);
+                this._marker = null;
+                this._map.setView([-2.5, 118], 5);
+            }
+        },
 
-            // ── Foto Identitas ───────────────────────────────────────────
-            handleFoto(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                this.fotoFile = file;
-                const r = new FileReader();
-                r.onload = ev => { this.fotoPreview = ev.target.result; };
-                r.readAsDataURL(file);
-            },
+        // ── Fetch Cuaca dari OWM ──────────────────────────────────────────────
+        async fetchCuaca() {
+            if (!this.lokasiTerpilih || !this.tglAmbilParent) return;
 
-            // ── Helpers ──────────────────────────────────────────────────
-            rupiah(n) {
-                return 'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(n);
-            },
+            this.loadingCuaca = true;
+            this.errorCuaca   = null;
+            this.cuaca        = null;
+            this.rekomendasi  = [];
 
-            today() {
-                return new Date().toISOString().split('T')[0];
-            },
+            try {
+                const params = new URLSearchParams({
+                    lat:           this.lokasiTerpilih.lat,
+                    lon:           this.lokasiTerpilih.lon,
+                    nama_lokasi:   this.lokasiTerpilih.nama_pendek,
+                    tanggal_ambil: this.tglAmbilParent,
+                });
 
-            syncHidden() {
-                document.getElementById('input_tgl_ambil').value   = this.tglAmbil;
-                document.getElementById('input_tgl_kembali').value = this.tglKembali;
-                document.getElementById('input_metode').value      = this.metodePembayaran;
-                document.getElementById('input_jenis_id').value    = this.jenisIdentitas;
-                document.getElementById('input_durasi').value      = this.durasi;
-            },
+                const res  = await fetch(`/api/cuaca?${params}`, {
+                    headers: {
+                        'Accept':       'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    }
+                });
+                const data = await res.json();
 
-            // ── Submit Utama ─────────────────────────────────────────────
-            async submitForm() {
-                if (!this.bisaSubmit || this.loading) return;
-
-                this.submitError = null;
-                this.syncHidden();
-
-                if (this.metodePembayaran !== 'midtrans') {
-                    document.getElementById('form-checkout').submit();
+                if (!res.ok) {
+                    this.errorCuaca = data.message || 'Gagal mengambil data cuaca.';
                     return;
                 }
 
-                this.loading = true;
+                this.cuaca          = data.cuaca;
+                this.rekomendasi    = data.rekomendasi ?? [];
+                this.namaLokasi     = data.lokasi;
+                this.koordinatLabel = `${this.lokasiTerpilih.lat.toFixed(4)}°, ${this.lokasiTerpilih.lon.toFixed(4)}°`;
 
-                try {
-                    const form     = document.getElementById('form-checkout');
-                    const formData = new FormData(form);
+            } catch (_) {
+                this.errorCuaca = 'Terjadi kesalahan jaringan. Periksa koneksi Anda.';
+            } finally {
+                this.loadingCuaca = false;
+            }
+        },
+    }));
 
-                    const response = await fetch(form.action, {
-                        method: 'POST',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                        },
-                        body: formData,
-                    });
+    // =========================================================================
+    //  CHECKOUT COMPONENT
+    // =========================================================================
+    Alpine.data('checkout', () => ({
 
-                    const data = await response.json();
+        tglAmbil:         '',
+        tglKembali:       '',
+        jenisIdentitas:   'KTP',
+        fotoPreview:      null,
+        fotoFile:         null,
+        metodePembayaran: 'midtrans',
+        setuju:           false,
+        loading:          false,
+        submitError:      null,
 
-                    if (!response.ok) {
-                        const errorMessages = data.errors
-                            ? Object.values(data.errors).flat().join(' • ')
-                            : (data.message || 'Terjadi kesalahan. Silakan coba lagi.');
-                        this.submitError = errorMessages;
-                        this.loading = false;
-                        return;
+        async init() {
+            await Alpine.store('cart').refresh();
+        },
+
+        // Saat tanggal berubah, trigger refresh cuaca di widget anak
+        onDateChange() {
+            const cuacaEl = this.$el.querySelector('[x-data="cuacaWidget"]');
+            if (cuacaEl?._x_dataStack) {
+                for (const data of cuacaEl._x_dataStack) {
+                    if (typeof data.fetchCuaca === 'function' && data.lokasiTerpilih) {
+                        data.fetchCuaca();
+                        break;
                     }
-
-                    window.snap.pay(data.snap_token, {
-                        onSuccess: (_result) => {
-                            this.loading = false;
-                            window.location.href = data.redirect_url;
-                        },
-                        onPending: (_result) => {
-                            this.loading = false;
-                            window.location.href = data.redirect_url;
-                        },
-                        onError: (_result) => {
-                            this.loading = false;
-                            this.submitError =
-                                'Pembayaran gagal. Silakan coba metode pembayaran lain atau ulangi.';
-                        },
-                        onClose: () => {
-                            this.loading = false;
-                            window.location.href = data.redirect_url;
-                        },
-                    });
-
-                } catch (err) {
-                    this.loading = false;
-                    this.submitError = 'Terjadi kesalahan jaringan. Periksa koneksi Anda dan coba lagi.';
-                    console.error('[Checkout Midtrans]', err);
                 }
-            },
-        }));
-    });
+            }
+        },
+
+        get subtotalPerHari() {
+            return Object.values(Alpine.store('cart').items).reduce((s, i) => s + i.harga * i.qty, 0);
+        },
+
+        get durasi() {
+            if (!this.tglAmbil || !this.tglKembali) return 0;
+            const d = Math.round((new Date(this.tglKembali) - new Date(this.tglAmbil)) / 86400000);
+            return d > 0 ? d : 0;
+        },
+
+        get totalSewa() {
+            return this.subtotalPerHari * (this.durasi || 0);
+        },
+
+        get bisaSubmit() {
+            return this.durasi > 0 &&
+                Alpine.store('cart').count > 0 &&
+                this.jenisIdentitas !== '' &&
+                this.fotoFile !== null &&
+                this.setuju;
+        },
+
+        hapusItem(id) { Alpine.store('cart').hapus(id); this.autoRefresh(); },
+        tambahQty(id) {
+            const item = Alpine.store('cart').items[id];
+            if (!item) return;
+            if (item.qty < item.stok) { Alpine.store('cart').update(id, item.qty + 1); this.autoRefresh(); }
+            else Alpine.store('toast').flash(`Stok "${item.nama}" sudah maksimal (${item.stok} unit).`, 'error');
+        },
+        kurangQty(id) {
+            const item = Alpine.store('cart').items[id];
+            if (!item) return;
+            if (item.qty > 1) { Alpine.store('cart').update(id, item.qty - 1); this.autoRefresh(); }
+            else { Alpine.store('cart').hapus(id); this.autoRefresh(); }
+        },
+        autoRefresh() { setTimeout(() => window.location.reload(), 600); },
+
+        handleFoto(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            this.fotoFile = file;
+            const r = new FileReader();
+            r.onload = ev => { this.fotoPreview = ev.target.result; };
+            r.readAsDataURL(file);
+        },
+
+        rupiah(n) { return 'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(n); },
+        today()   { return new Date().toISOString().split('T')[0]; },
+
+        syncHidden() {
+            document.getElementById('input_tgl_ambil').value   = this.tglAmbil;
+            document.getElementById('input_tgl_kembali').value = this.tglKembali;
+            document.getElementById('input_metode').value      = this.metodePembayaran;
+            document.getElementById('input_jenis_id').value    = this.jenisIdentitas;
+            document.getElementById('input_durasi').value      = this.durasi;
+        },
+
+        async submitForm() {
+            if (!this.bisaSubmit || this.loading) return;
+            this.submitError = null;
+            this.syncHidden();
+
+            if (this.metodePembayaran !== 'midtrans') {
+                document.getElementById('form-checkout').submit();
+                return;
+            }
+
+            this.loading = true;
+            try {
+                const form     = document.getElementById('form-checkout');
+                const formData = new FormData(form);
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept':           'application/json',
+                        'X-CSRF-TOKEN':     document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: formData,
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    this.submitError = data.errors
+                        ? Object.values(data.errors).flat().join(' • ')
+                        : (data.message || 'Terjadi kesalahan. Silakan coba lagi.');
+                    this.loading = false;
+                    return;
+                }
+
+                window.snap.pay(data.snap_token, {
+                    onSuccess: (_) => { this.loading = false; window.location.href = data.redirect_url; },
+                    onPending: (_) => { this.loading = false; window.location.href = data.redirect_url; },
+                    onError:   (_) => { this.loading = false; this.submitError = 'Pembayaran gagal. Silakan coba metode lain.'; },
+                    onClose:   ()  => { this.loading = false; window.location.href = data.redirect_url; },
+                });
+
+            } catch (err) {
+                this.loading = false;
+                this.submitError = 'Terjadi kesalahan jaringan. Periksa koneksi Anda dan coba lagi.';
+            }
+        },
+    }));
+});
 </script>
 
 </html>
