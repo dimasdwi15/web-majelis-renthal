@@ -32,11 +32,11 @@ class KategoriBarangForm
             Select::make('ikon')
                 ->label('Icon')
                 ->options([
-                    'tent' => 'Tenda',
-                    'backpack' => "Tas",
-                    'shoe' => 'Sepatu',
-                    'bed-flat' => 'Sleeping bag',
-                    'stove' => 'kompor',
+                    'tent' => 'Camping Gear',
+                    'backpack' => "Hiking Gear",
+                    'shoe' => 'Apparel',
+                    'bed-flat' => 'Accessories',
+                    'stove' => 'Cooking Equipment',
 
                 ])
                 ->live()

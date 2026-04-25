@@ -17,7 +17,7 @@ class KatalogController extends Controller
             ->orderBy('nama')
             ->get();
 
-        $query = Barang::with(['kategori', 'fotoUtama'])
+        $query = Barang::with(['kategori', 'fotoUtama', 'foto'])  // ← tambah 'fotos'
             ->where('status', 'aktif');
 
         // Filter: pencarian teks
@@ -48,10 +48,8 @@ class KatalogController extends Controller
             default      => $query->latest(),
         };
 
-        $barang = $query->paginate(9)->withQueryString();
-
-        $perPage = (int) request('perPage', 6); // default 6
-        $barang = $query->paginate($perPage)->withQueryString();
+        $perPage = (int) $request->get('perPage', 6);
+        $barang  = $query->paginate($perPage)->withQueryString();
 
         return view('user.pages.katalog', compact('barang', 'kategori'));
     }

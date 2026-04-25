@@ -16,12 +16,6 @@
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
         rel="stylesheet" />
 
-    {{--
-        Midtrans Snap.js
-        - Sandbox : https://app.sandbox.midtrans.com/snap/snap.js
-        - Production: https://app.midtrans.com/snap/snap.js
-        data-client-key wajib diisi dari config midtrans.
-    --}}
     @if(config('midtrans.is_production'))
         <script src="https://app.midtrans.com/snap/snap.js"
                 data-client-key="{{ config('midtrans.client_key') }}"></script>
@@ -94,7 +88,7 @@
                                     <span
                                         class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">calendar_today</span>
                                     <input type="date" x-model="tglAmbil" :min="today()"
-                                        x-on:change="if(tglKembali && tglKembali <= tglAmbil) tglKembali = ''"
+                                        x-on:change="if(tglKembali && tglKembali <= tglAmbil) tglKembali = ''; onDateOrLokasiChange()"
                                         class="w-full pl-10 pr-3 py-3 border-[1.5px] border-[#e0d9c8] rounded-xl text-sm bg-white focus:outline-none focus:border-[#4d462e] focus:ring-2 focus:ring-[#4d462e]/10 transition-all">
                                 </div>
                             </div>
@@ -126,6 +120,217 @@
                         </div>
                     </div>
                 </div>
+
+                {{-- ═══ LOKASI CAMPING & CUACA ═══ --}}
+                <div
+                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md"
+                    x-data="cuacaWidget">
+
+                    {{-- Header --}}
+                    <div
+                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span
+                            class="font-syne w-8 h-8 rounded-xl bg-[#3a5c3a] text-[#d4f0d4] text-[11px] font-bold flex items-center justify-center flex-shrink-0">
+                            <span class="material-symbols-outlined text-[15px]">partly_cloudy_day</span>
+                        </span>
+                        <div class="flex-1">
+                            <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Lokasi Camping &
+                                Prakiraan Cuaca</h2>
+                            <p class="text-[10px] text-[#9b947c] mt-0.5">Opsional · Untuk rekomendasi perlengkapan</p>
+                        </div>
+                        {{-- Badge opsional --}}
+                        <span
+                            class="text-[9px] font-bold bg-[#3a5c3a]/10 text-[#3a5c3a] border border-[#3a5c3a]/20 px-2.5 py-1 rounded-full">Opsional</span>
+                    </div>
+
+                    <div class="p-6">
+
+                        {{-- Pilih lokasi --}}
+                        <div class="mb-4">
+                            <label
+                                class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Pilih
+                                Lokasi Camping</label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">landscape</span>
+                                <select x-model="lokasiId"
+                                    x-on:change="onLokasiChange()"
+                                    class="w-full pl-10 pr-10 py-3 border-[1.5px] border-[#e0d9c8] rounded-xl text-sm bg-white focus:outline-none focus:border-[#3a5c3a] focus:ring-2 focus:ring-[#3a5c3a]/10 transition-all appearance-none">
+                                    <option value="">— Pilih gunung / lokasi camping —</option>
+                                    @foreach(\App\Http\Controllers\CuacaController::daftarLokasi() as $lok)
+                                        <option value="{{ $lok['id'] }}">{{ $lok['nama'] }}
+                                            ({{ $lok['provinsi'] }})</option>
+                                    @endforeach
+                                </select>
+                                <span
+                                    class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#9b947c] text-[18px] pointer-events-none">expand_more</span>
+                            </div>
+                        </div>
+
+                        {{-- Info jika belum pilih tanggal --}}
+                        <div x-show="lokasiId && !tglAmbilParent" x-cloak
+                            class="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs">
+                            <span class="material-symbols-outlined text-[16px]">info</span>
+                            Pilih tanggal ambil terlebih dahulu untuk melihat prakiraan cuaca.
+                        </div>
+
+                        {{-- Loading State --}}
+                        <div x-show="loading" x-cloak class="py-8">
+                            <div class="flex flex-col items-center gap-3">
+                                <div
+                                    class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3a5c3a]/10 to-[#3a5c3a]/20 flex items-center justify-center">
+                                    <svg class="animate-spin h-5 w-5 text-[#3a5c3a]" fill="none"
+                                        viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                                            stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                        </path>
+                                    </svg>
+                                </div>
+                                <p class="text-[12px] text-[#7b6f52]">Mengambil data cuaca...</p>
+                            </div>
+                        </div>
+
+                        {{-- Error State --}}
+                        <div x-show="error && !loading" x-cloak
+                            class="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                            <span
+                                class="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0 mt-0.5">error</span>
+                            <p class="text-[12px] text-red-600" x-text="error"></p>
+                        </div>
+
+                        {{-- Hasil Cuaca --}}
+                        <div x-show="cuaca && !loading" x-cloak class="space-y-4">
+
+                            {{-- Card cuaca utama --}}
+                            <div class="rounded-2xl overflow-hidden border"
+                                :class="{
+                                    'border-red-200 bg-gradient-to-br from-red-50 to-red-100/50'   : cuaca?.level === 'danger',
+                                    'border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50': cuaca?.level === 'warning',
+                                    'border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50'  : cuaca?.warna === 'blue',
+                                    'border-green-200 bg-gradient-to-br from-green-50 to-green-100/50': cuaca?.level === 'good',
+                                    'border-[#e0d9c8] bg-gradient-to-br from-[#faf8f2] to-[#f5f3ec]' : cuaca?.level === 'neutral',
+                                }">
+
+                                {{-- Header lokasi --}}
+                                <div class="px-5 pt-4 pb-0 flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="font-syne font-extrabold text-[15px] text-[#1b1c1a]"
+                                            x-text="namaLokasi"></p>
+                                        <p class="text-[10px] text-[#7b6f52]" x-text="provinsiLokasi"></p>
+                                    </div>
+                                    <div class="flex flex-col items-end">
+                                        <img :src="cuaca?.icon" class="w-12 h-12 -mt-1" alt="cuaca">
+                                        <span class="text-[10px] text-[#7b6f52] -mt-1"
+                                            x-text="cuaca?.deskripsi"></span>
+                                    </div>
+                                </div>
+
+                                {{-- Suhu besar --}}
+                                <div class="px-5 pb-4 flex items-end gap-4">
+                                    <div>
+                                        <span class="font-syne font-extrabold text-5xl leading-none text-[#1b1c1a]"
+                                            x-text="cuaca?.suhu + '°'"></span>
+                                        <span class="text-[11px] text-[#7b6f52] ml-1">C</span>
+                                    </div>
+                                    <div class="flex flex-col text-[11px] text-[#7b6f52] mb-1">
+                                        <span>↑ <span x-text="cuaca?.suhu_max + '°C'"></span></span>
+                                        <span>↓ <span x-text="cuaca?.suhu_min + '°C'"></span></span>
+                                    </div>
+                                    <div class="flex gap-3 mb-1 ml-auto">
+                                        <div class="flex items-center gap-1 text-[11px] text-[#7b6f52]">
+                                            <span
+                                                class="material-symbols-outlined text-[14px]">water_drop</span>
+                                            <span x-text="cuaca?.kelembaban + '%'"></span>
+                                        </div>
+                                        <div class="flex items-center gap-1 text-[11px] text-[#7b6f52]">
+                                            <span class="material-symbols-outlined text-[14px]">air</span>
+                                            <span x-text="cuaca?.angin + ' km/h'"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Pesan peringatan --}}
+                                <div class="px-5 pb-4">
+                                    <div class="flex items-start gap-2 rounded-xl px-4 py-3 text-[11px] font-medium leading-relaxed"
+                                        :class="{
+                                            'bg-red-100/60 text-red-700'   : cuaca?.level === 'danger',
+                                            'bg-amber-100/60 text-amber-700': cuaca?.level === 'warning',
+                                            'bg-blue-100/60 text-blue-700'  : cuaca?.warna === 'blue',
+                                            'bg-green-100/60 text-green-700': cuaca?.level === 'good',
+                                            'bg-[#f0ece0] text-[#5a584f]'   : cuaca?.level === 'neutral',
+                                        }">
+                                        <span class="material-symbols-outlined text-[16px] flex-shrink-0 mt-px"
+                                            x-text="cuaca?.level === 'danger' ? 'warning' : cuaca?.level === 'warning' ? 'thunderstorm' : cuaca?.level === 'good' ? 'check_circle' : 'info'">
+                                        </span>
+                                        <span x-text="cuaca?.pesan"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Rekomendasi Barang --}}
+                            <div x-show="rekomendasi.length > 0">
+                                <div class="flex items-center justify-between mb-3">
+                                    <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#7b6f52]">
+                                        Rekomendasi Perlengkapan
+                                    </p>
+                                    <span
+                                        class="text-[9px] text-[#9b947c] bg-[#f5f3ed] border border-[#e0d9c8] px-2 py-0.5 rounded-full">
+                                        Berdasarkan kondisi cuaca
+                                    </span>
+                                </div>
+
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    <template x-for="item in rekomendasi" :key="item.id">
+                                        <div
+                                            class="group relative bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                                            {{-- Foto --}}
+                                            <div class="aspect-square bg-[#f5f3ed] overflow-hidden">
+                                                <img
+                                                    :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'"
+                                                    :alt="item.nama"
+                                                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                                            </div>
+                                            {{-- Info --}}
+                                            <div class="p-3">
+                                                <span
+                                                    class="text-[8px] font-bold tracking-[0.1em] uppercase text-[#7b6f52] bg-[#f5f3ed] border border-[#e0d9c8] px-1.5 py-0.5 rounded-md"
+                                                    x-text="item.kategori"></span>
+                                                <p class="font-syne font-bold text-[11px] uppercase leading-tight mt-1.5 text-[#1b1c1a]"
+                                                    x-text="item.nama"></p>
+                                                <p class="text-[11px] text-[#4d462e] font-semibold mt-1">
+                                                    <span
+                                                        x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(item.harga)"></span>
+                                                    <span class="text-[#9b947c] font-normal">/hr</span>
+                                                </p>
+                                                {{-- Tombol tambah ke keranjang --}}
+                                                <a :href="'/katalog/' + item.id"
+                                                    class="mt-2 w-full flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[#4d462e]/8 border border-[#4d462e]/15 text-[9px] font-bold tracking-[0.1em] uppercase text-[#4d462e] hover:bg-[#4d462e] hover:text-[#F2E8C6] transition-all duration-200">
+                                                    <span class="material-symbols-outlined text-[12px]">add_shopping_cart</span>
+                                                    Lihat Detail
+                                                </a>
+                                            </div>
+                                            {{-- Stok badge --}}
+                                            <div
+                                                class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-[#e0d9c8] rounded-full px-2 py-0.5 text-[8px] font-bold text-[#4d462e]">
+                                                <span x-text="item.stok"></span> unit
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            {{-- Jika tidak ada rekomendasi --}}
+                            <div x-show="rekomendasi.length === 0" x-cloak
+                                class="text-center py-4 text-[12px] text-[#9b947c]">
+                                Tidak ada rekomendasi barang untuk kondisi cuaca ini.
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                {{-- ═══ END LOKASI CAMPING & CUACA ═══ --}}
 
                 {{-- 02 · INVENTARIS GEAR --}}
                 <div
@@ -525,10 +730,6 @@
                         <p class="text-[12px] text-red-600 leading-relaxed" x-text="submitError"></p>
                     </div>
 
-                    {{-- ══ TOMBOL SUBMIT ══
-                        - Untuk COD      : submit form biasa (sinkron)
-                        - Untuk Midtrans : AJAX fetch → snap_token → window.snap.pay()
-                    --}}
                     <button type="button" x-on:click="submitForm()"
                         :disabled="!bisaSubmit || loading"
                         class="w-full py-4 rounded-2xl font-syne font-extrabold text-[12px] tracking-[0.15em] uppercase border-0 transition-all duration-300"
@@ -536,7 +737,6 @@
                             ? 'bg-gradient-to-r from-[#2e2a1e] to-[#4d462e] text-[#F2E8C6] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#4d462e]/30 cursor-pointer'
                             : 'bg-[#e0d9c8] text-[#9b947c] cursor-not-allowed'">
 
-                        {{-- State: Loading --}}
                         <span x-show="loading" class="flex items-center justify-center gap-2">
                             <svg class="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
@@ -548,7 +748,6 @@
                             Memproses...
                         </span>
 
-                        {{-- State: Normal --}}
                         <span x-show="!loading"
                             x-text="metodePembayaran === 'midtrans' ? 'Lanjut ke Pembayaran →' : 'Konfirmasi Pesanan →'">
                         </span>
@@ -596,6 +795,92 @@
 
 <script>
     document.addEventListener('alpine:init', () => {
+
+        // ═══════════════════════════════════════════════════════════
+        //  CUACA WIDGET — Alpine Component terpisah
+        //  Menggunakan x-data="cuacaWidget" pada element-nya
+        // ═══════════════════════════════════════════════════════════
+        Alpine.data('cuacaWidget', () => ({
+            lokasiId: '',
+            loading: false,
+            error: null,
+            cuaca: null,
+            rekomendasi: [],
+            namaLokasi: '',
+            provinsiLokasi: '',
+
+            // Reactive binding ke tglAmbil dari parent checkout component.
+            // Kita gunakan getter yang membaca dari Alpine.$root scope.
+            get tglAmbilParent() {
+                // Cari parent Alpine component dengan property tglAmbil
+                try {
+                    const parentEl = this.$el.closest('[x-data="checkout"]');
+                    if (parentEl && parentEl._x_dataStack) {
+                        for (const data of parentEl._x_dataStack) {
+                            if (data.tglAmbil !== undefined) return data.tglAmbil;
+                        }
+                    }
+                } catch (_) {}
+                return null;
+            },
+
+            onLokasiChange() {
+                if (this.lokasiId && this.tglAmbilParent) {
+                    this.fetchCuaca();
+                } else {
+                    // Reset jika lokasi dikosongkan
+                    if (!this.lokasiId) {
+                        this.cuaca = null;
+                        this.rekomendasi = [];
+                        this.error = null;
+                    }
+                }
+            },
+
+            async fetchCuaca() {
+                if (!this.lokasiId || !this.tglAmbilParent) return;
+
+                this.loading = true;
+                this.error = null;
+                this.cuaca = null;
+                this.rekomendasi = [];
+
+                try {
+                    const params = new URLSearchParams({
+                        lokasi_id: this.lokasiId,
+                        tanggal_ambil: this.tglAmbilParent,
+                    });
+
+                    const res = await fetch(`/api/cuaca?${params}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        }
+                    });
+
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                        this.error = data.message || 'Gagal mengambil data cuaca.';
+                        return;
+                    }
+
+                    this.cuaca = data.cuaca;
+                    this.rekomendasi = data.rekomendasi || [];
+                    this.namaLokasi = data.lokasi;
+                    this.provinsiLokasi = data.provinsi;
+
+                } catch (e) {
+                    this.error = 'Terjadi kesalahan jaringan. Periksa koneksi Anda.';
+                } finally {
+                    this.loading = false;
+                }
+            },
+        }));
+
+        // ═══════════════════════════════════════════════════════════
+        //  CHECKOUT COMPONENT
+        // ═══════════════════════════════════════════════════════════
         Alpine.data('checkout', () => ({
 
             // ── State ────────────────────────────────────────────────────
@@ -607,13 +892,26 @@
             metodePembayaran: 'midtrans',
             setuju: false,
 
-            // State untuk AJAX Midtrans
             loading: false,
             submitError: null,
 
             // ── Init ─────────────────────────────────────────────────────
             async init() {
                 await Alpine.store('cart').refresh();
+            },
+
+            // ── Trigger refresh cuaca saat tanggal ambil berubah ─────────
+            onDateOrLokasiChange() {
+                // Dispatch ke cuacaWidget yang ada di dalam scope ini
+                const cuacaEl = this.$el.querySelector('[x-data="cuacaWidget"]');
+                if (cuacaEl && cuacaEl._x_dataStack) {
+                    for (const data of cuacaEl._x_dataStack) {
+                        if (typeof data.fetchCuaca === 'function' && data.lokasiId) {
+                            data.fetchCuaca();
+                            break;
+                        }
+                    }
+                }
             },
 
             // ── Computed ─────────────────────────────────────────────────
@@ -697,38 +995,25 @@
             },
 
             syncHidden() {
-                document.getElementById('input_tgl_ambil').value  = this.tglAmbil;
+                document.getElementById('input_tgl_ambil').value   = this.tglAmbil;
                 document.getElementById('input_tgl_kembali').value = this.tglKembali;
-                document.getElementById('input_metode').value     = this.metodePembayaran;
-                document.getElementById('input_jenis_id').value   = this.jenisIdentitas;
-                document.getElementById('input_durasi').value     = this.durasi;
+                document.getElementById('input_metode').value      = this.metodePembayaran;
+                document.getElementById('input_jenis_id').value    = this.jenisIdentitas;
+                document.getElementById('input_durasi').value      = this.durasi;
             },
 
             // ── Submit Utama ─────────────────────────────────────────────
-            /**
-             * Untuk COD  : submit form biasa (sinkron).
-             * Untuk Midtrans : AJAX → dapatkan snap_token → buka popup Snap.
-             *
-             * Alur Midtrans:
-             *   1. syncHidden()    → isi hidden input
-             *   2. FormData(form)  → kumpulkan semua field + file foto
-             *   3. fetch POST      → CheckoutController::proses() → JSON { snap_token, redirect_url }
-             *   4. snap.pay()      → popup Midtrans muncul
-             *   5. onSuccess/onPending/onClose → redirect ke halaman struk
-             */
             async submitForm() {
                 if (!this.bisaSubmit || this.loading) return;
 
                 this.submitError = null;
                 this.syncHidden();
 
-                // ── COD: submit biasa ──────────────────────────────────
                 if (this.metodePembayaran !== 'midtrans') {
                     document.getElementById('form-checkout').submit();
                     return;
                 }
 
-                // ── MIDTRANS: AJAX + Snap popup ────────────────────────
                 this.loading = true;
 
                 try {
@@ -740,8 +1025,6 @@
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest',
                             'Accept': 'application/json',
-                            // _token sudah ada di FormData via @csrf, tapi
-                            // tambahkan header untuk keamanan ekstra
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         },
                         body: formData,
@@ -749,7 +1032,6 @@
 
                     const data = await response.json();
 
-                    // Validasi / error server
                     if (!response.ok) {
                         const errorMessages = data.errors
                             ? Object.values(data.errors).flat().join(' • ')
@@ -759,33 +1041,20 @@
                         return;
                     }
 
-                    // ── Buka Midtrans Snap popup ───────────────────────
                     window.snap.pay(data.snap_token, {
-
-                        // Pembayaran berhasil → redirect ke struk
                         onSuccess: (_result) => {
                             this.loading = false;
                             window.location.href = data.redirect_url;
                         },
-
-                        // Pembayaran pending (misal: VA belum dibayar)
-                        // Redirect ke struk, status masih "menunggu_pembayaran"
-                        // dan akan di-update oleh webhook Midtrans
                         onPending: (_result) => {
                             this.loading = false;
                             window.location.href = data.redirect_url;
                         },
-
-                        // Pembayaran gagal → tampilkan error, biarkan user coba lagi
                         onError: (_result) => {
                             this.loading = false;
                             this.submitError =
                                 'Pembayaran gagal. Silakan coba metode pembayaran lain atau ulangi.';
                         },
-
-                        // User menutup popup tanpa bayar → redirect ke struk
-                        // (pesanan sudah dibuat dengan status "menunggu_pembayaran",
-                        //  akan dibatalkan otomatis oleh scheduler setelah 24 jam)
                         onClose: () => {
                             this.loading = false;
                             window.location.href = data.redirect_url;

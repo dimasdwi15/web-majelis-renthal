@@ -35,4 +35,21 @@ return [
         ],
     ],
 
+    // =========================================================================
+    // Groq AI — Gratis ~14.400 request/hari
+    // Daftar API Key di: https://console.groq.com → API Keys
+    // =========================================================================
+    'ai' => [
+        'provider'     => env('AI_PROVIDER', 'groq'),
+        'groq_api_key' => env('GROQ_API_KEY'),
+        'groq_model'   => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'ollama_url'   => env('OLLAMA_URL', 'http://localhost:11434'),
+        'ollama_model' => env('OLLAMA_MODEL', 'llama3.2'),
+    ],
+
+    // UNTUK API WEATHER
+     'openweather' => [
+        'key' => env('OPENWEATHER_API_KEY', ''),
+    ],
+
 ];

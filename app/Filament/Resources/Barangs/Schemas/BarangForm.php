@@ -2,12 +2,13 @@
 
 namespace App\Filament\Resources\Barangs\Schemas;
 
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\FileUpload;
+use App\Filament\Resources\Barangs\Actions\GenerateBarangAction;
 use App\Models\KategoriBarang;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
 
 class BarangForm
 {
@@ -23,26 +24,45 @@ class BarangForm
                     ->searchable()
                     ->required(),
 
+                // ── Nama Barang + Tombol Auto Generate ────────────────────────
                 TextInput::make('nama')
-                    ->required(),
+                    ->label('Nama Barang')
+                    ->required()
+                    ->placeholder('Contoh: Carrier 60L Deuter, Tenda Dome 4 orang...')
+                    ->helperText('Isi nama barang lalu klik ✨ Auto Generate untuk mengisi deskripsi & spesifikasi otomatis.')
+                    // ✅ FIX: hapus ->disabled() dari action karena pakai $get, bukan $state
+                    ->suffixActions([
+                        GenerateBarangAction::make(),
+                    ]),
 
                 Textarea::make('deskripsi')
+                    ->label('Deskripsi')
+                    ->placeholder('Klik ✨ Auto Generate di atas, atau tulis deskripsi secara manual di sini.')
+                    ->rows(4)
                     ->columnSpanFull(),
 
                 Textarea::make('spesifikasi')
+                    ->label('Spesifikasi Teknis')
+                    ->placeholder("- Material: ...\n- Ukuran: ...\n- Berat: ...\n- Kapasitas: ...\n- Fitur utama: ...")
+                    ->rows(6)
                     ->columnSpanFull(),
 
                 TextInput::make('harga_per_hari')
+                    ->label('Harga per Hari (Rp)')
                     ->numeric()
+                    ->prefix('Rp')
                     ->required(),
 
                 TextInput::make('stok')
+                    ->label('Stok')
                     ->numeric()
+                    ->minValue(0)
                     ->required(),
 
                 Select::make('status')
+                    ->label('Status')
                     ->options([
-                        'aktif' => 'Ready',
+                        'aktif'    => 'Ready',
                         'nonaktif' => 'Maintenance',
                     ])
                     ->default('aktif')
@@ -54,7 +74,8 @@ class BarangForm
                     ->multiple()
                     ->directory('barang')
                     ->disk('public')
-                    ->visibility('public'),
+                    ->visibility('public')
+                    ->columnSpanFull(),
             ]);
     }
 }

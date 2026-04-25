@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-    class="icon icon-tabler icons-tabler-outline icon-tabler-bed-flat">
+    class="icon icon-tabler icons-tabler-outline icon-tabler-compass">
     <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-    <path d="M3 11a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
-    <path d="M10 13h11v-2a3 3 0 0 0 -3 -3h-8v5" />
-    <path d="M3 16h18" />
+    <circle cx="12" cy="12" r="10" />
+    <path d="M16.24 7.76l-2.12 6.36l-6.36 2.12l2.12 -6.36l6.36 -2.12" />
+    <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
 </svg>

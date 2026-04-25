@@ -11,6 +11,8 @@ use App\Http\Controllers\User\DashboardController;
 use App\Http\Controllers\User\PesananController;
 use App\Http\Controllers\User\ProfilController;
 use App\Http\Controllers\User\NotifikasiController;
+use App\Http\Controllers\CuacaController;
+
 
 Route::get('/', fn() => view('home'))->name('home');
 
@@ -92,4 +94,7 @@ Route::post('/pesanan/{transaksi}/bayar-ulang', [PesananController::class, 'baya
 
 Route::post('/bayar-denda/{denda}', [PesananController::class, 'bayarDendaLangsung'])
     ->middleware('auth');
+
+// UNTUK OPEN WEATHER
+Route::get('/api/cuaca', [CuacaController::class, 'cek'])->name('cuaca.cek');
 require __DIR__ . '/auth.php';
