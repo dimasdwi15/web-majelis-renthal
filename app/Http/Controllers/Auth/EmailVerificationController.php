@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\OtpService;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,19 +18,11 @@ class EmailVerificationController extends Controller
 
     /**
      * Halaman notifikasi / form input OTP.
-     *
-     * Dapat diakses oleh:
-     * 1. Guest yang punya session 'pending_registration' (baru daftar, belum ada di DB)
-     * 2. User yang sudah login tapi belum terverifikasi
      */
     public function notice(Request $request)
     {
-        // Izinkan halaman tampil untuk show popup sukses meski sudah verified
-        if (session('registration_success')) {
-            $email = $request->user()?->email ?? session('pending_registration.email', '');
-            return view('auth.verify-email', compact('email'));
-        }
-
+        // Jika user sudah login DAN sudah verified → langsung ke dashboard
+        // (tidak perlu tampilkan popup sukses di halaman OTP lagi)
         if ($request->user() && $request->user()->hasVerifiedEmail()) {
             return redirect()->route('user.dashboard');
         }
@@ -51,7 +44,8 @@ class EmailVerificationController extends Controller
      *
      * FLOW 1 — Pending registration (user belum ada di DB):
      *   → Verifikasi OTP via email saja
-     *   → Jika valid, buat user di DB, login, redirect ke dashboard
+     *   → Jika valid, buat user di DB dengan email_verified_at = now()
+     *   → Login, redirect langsung ke dashboard dengan pesan sukses
      *
      * FLOW 2 — User sudah ada di DB tapi belum verified:
      *   → Verifikasi OTP via User model
@@ -75,24 +69,30 @@ class EmailVerificationController extends Controller
                 ]);
             }
 
-            // Buat user di database — sertakan google_id & avatar jika ada (daftar via Google)
+            // Buat user — email_verified_at langsung diisi sekarang
+            // karena OTP sudah terbukti valid
             $user = User::create([
                 'name'              => $pending['name'],
                 'email'             => $pending['email'],
                 'phone'             => $pending['phone'] ?? null,
                 'alamat'            => $pending['alamat'] ?? null,
                 'password'          => $pending['password'],
-                'google_id'         => $pending['google_id'] ?? null,  // ← tambahan
-                'avatar'            => $pending['avatar'] ?? null,     // ← tambahan
-                'email_verified_at' => now(),
+                'google_id'         => $pending['google_id'] ?? null,
+                'avatar'            => $pending['avatar'] ?? null,
+                'email_verified_at' => now(), // ← bisa diisi karena sudah ada di $fillable
             ]);
 
+            // Bersihkan session pending
             session()->forget('pending_registration');
 
+            // Login user
             Auth::login($user);
 
-            return redirect()->route('verification.notice')
-                ->with('registration_success', true);
+            // ── FIX #2: Redirect langsung ke dashboard, BUKAN ke verification.notice
+            // Dulu redirect ke verification.notice menyebabkan loop:
+            // middleware 'verified' menolak → redirect ke notice → user bingung
+            return redirect()->route('user.dashboard')
+                ->with('success', 'Selamat datang! Akun Anda berhasil dibuat dan email telah diverifikasi.');
         }
 
         // ── FLOW 2: User sudah ada di DB, belum verified ─────────────────────
@@ -114,20 +114,19 @@ class EmailVerificationController extends Controller
     }
 
     /**
-     * Kirim ulang OTP (atau email verifikasi link untuk user yang sudah ada di DB).
+     * Kirim ulang OTP.
      */
     public function resend(Request $request): RedirectResponse
     {
         $pending = session('pending_registration');
 
-        // ── Pending registration: kirim ulang OTP ke email di session ─────────
+        // ── Pending registration ──────────────────────────────────────────────
         if ($pending) {
             $this->otpService->sendOtpToEmail($pending['email']);
-
             return back()->with('status', 'verification-link-sent');
         }
 
-        // ── User sudah login: kirim ulang email verifikasi + OTP baru ─────────
+        // ── User sudah login ──────────────────────────────────────────────────
         $user = $request->user();
 
         if (! $user) {
@@ -138,8 +137,6 @@ class EmailVerificationController extends Controller
             return redirect()->route('user.dashboard');
         }
 
-        // Kirim ulang link verifikasi Laravel + OTP
-        $user->sendEmailVerificationNotification();
         $this->otpService->sendOtp($user);
 
         return back()->with('status', 'verification-link-sent');

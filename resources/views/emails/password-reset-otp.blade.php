@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Kode Verifikasi — Majelis Rental</title>
+    <title>Reset Password — Majelis Rental</title>
     <!--[if mso]>
     <noscript>
         <xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
@@ -48,7 +48,7 @@
                                     </td>
                                     <td align="right" valign="middle">
                                         <p style="font-size:9px;font-weight:700;color:rgba(242,232,198,0.15);letter-spacing:0.22em;margin:0;text-transform:uppercase;">
-                                            EMAIL VERIFICATION
+                                            PASSWORD RESET
                                         </p>
                                     </td>
                                 </tr>
@@ -62,28 +62,24 @@
 
                             {{-- Section label --}}
                             <p style="font-size:10px;font-weight:700;color:#655e44;letter-spacing:0.16em;text-transform:uppercase;margin:0 0 8px;">
-                                Verifikasi Akun
+                                Reset Password
                             </p>
 
                             {{-- Headline --}}
                             <h1 style="font-size:26px;font-weight:900;color:#251D1D;letter-spacing:-0.02em;margin:0 0 16px;line-height:1.15;">
-                                Kode OTP Anda Sudah Siap
+                                Permintaan Reset Password
                             </h1>
 
                             {{-- Body text --}}
-                            {{--
-                                PERBAIKAN: Ganti $otp->email  → $email
-                                           Ganti $otp->otp    → $plainCode
-                                           Ganti $otp->expires_at → $expiresAt
-                                Variabel-variabel ini dikirim dari OtpVerificationMail::content()
-                            --}}
                             <p style="font-size:14px;color:#5c5852;line-height:1.8;margin:0 0 32px;">
-                                Selamat datang di <strong style="color:#251D1D;">Majelis Rental</strong>.
-                                Gunakan kode 6 digit berikut untuk memverifikasi alamat email
-                                <strong style="color:#251D1D;">{{ $email }}</strong>.
+                                Kami menerima permintaan reset password untuk akun
+                                <strong style="color:#251D1D;">Majelis Rental</strong>
+                                yang terdaftar pada alamat
+                                <strong style="color:#251D1D;">{{ $otp->email }}</strong>.
+                                Gunakan kode 6 digit berikut untuk melanjutkan proses reset password.
                             </p>
 
-                            {{-- ── OTP Panel (machined block) ── --}}
+                            {{-- ── OTP Panel ── --}}
                             <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
                                    style="margin-bottom:10px;">
                                 <tr>
@@ -92,10 +88,10 @@
 
                                     <td style="background-color:#f4f4ef;padding:28px 32px;text-align:center;border-radius:0 4px 4px 0;">
                                         <p style="font-size:10px;font-weight:700;color:rgba(37,29,29,0.3);letter-spacing:0.24em;text-transform:uppercase;margin:0 0 18px;">
-                                            KODE VERIFIKASI OTP
+                                            KODE RESET PASSWORD
                                         </p>
                                         <p style="font-size:52px;font-weight:900;color:#251D1D;letter-spacing:0.4em;margin:0 0 0 0.4em;line-height:1;font-variant-numeric:tabular-nums;">
-                                            {{ $plainCode }}
+                                            {{ $otp->otp }}
                                         </p>
                                     </td>
                                 </tr>
@@ -112,7 +108,7 @@
                                             &nbsp;·&nbsp;
                                             Kedaluwarsa:&nbsp;
                                             <strong style="color:#251D1D;">
-                                                {{ $expiresAt->setTimezone('Asia/Jakarta')->format('H:i \W\I\B') }}
+                                                {{ $otp->expires_at->setTimezone('Asia/Jakarta')->format('H:i \W\I\B') }}
                                             </strong>
                                         </p>
                                     </td>
@@ -132,8 +128,8 @@
                                         <div style="width:24px;height:24px;background-color:#655e44;border-radius:2px;text-align:center;line-height:24px;font-size:11px;font-weight:800;color:#f2e8c6;">1</div>
                                     </td>
                                     <td style="padding-left:10px;font-size:13px;color:#5c5852;line-height:1.6;padding-top:3px;">
-                                        Buka halaman verifikasi di browser, lalu pilih tab
-                                        <strong style="color:#251D1D;">"Via Kode OTP"</strong>
+                                        Buka halaman reset password di browser yang Anda gunakan
+                                        sebelumnya
                                     </td>
                                 </tr>
                             </table>
@@ -147,7 +143,7 @@
                                     </td>
                                     <td style="padding-left:10px;font-size:13px;color:#5c5852;line-height:1.6;padding-top:3px;">
                                         Ketik atau tempel kode
-                                        <strong style="color:#251D1D;letter-spacing:0.05em;font-size:14px;">{{ $plainCode }}</strong>
+                                        <strong style="color:#251D1D;letter-spacing:0.05em;font-size:14px;">{{ $otp->otp }}</strong>
                                         pada kotak input yang tersedia
                                     </td>
                                 </tr>
@@ -161,8 +157,8 @@
                                         <div style="width:24px;height:24px;background-color:#655e44;border-radius:2px;text-align:center;line-height:24px;font-size:11px;font-weight:800;color:#f2e8c6;">3</div>
                                     </td>
                                     <td style="padding-left:10px;font-size:13px;color:#5c5852;line-height:1.6;padding-top:3px;">
-                                        Klik tombol <strong style="color:#251D1D;">"Verifikasi OTP"</strong>
-                                        — selesai, akun Anda aktif
+                                        Klik <strong style="color:#251D1D;">"Verifikasi OTP"</strong>
+                                        dan buat kata sandi baru Anda
                                     </td>
                                 </tr>
                             </table>
@@ -176,14 +172,14 @@
                             <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
                                    style="background-color:#f4f4ef;border-radius:4px;">
                                 <tr>
-                                    {{-- Left accent, darker --}}
                                     <td style="width:3px;background-color:#4a4530;border-radius:4px 0 0 4px;opacity:0.5;"></td>
                                     <td style="padding:14px 18px;">
                                         <p style="font-size:12px;color:rgba(37,29,29,0.5);margin:0;line-height:1.75;">
                                             <strong style="color:#251D1D;">⚠ Keamanan:</strong>
-                                            Jangan bagikan kode ini kepada siapapun. Tim Majelis Rental
-                                            tidak pernah meminta kode OTP via telepon atau chat.
-                                            Jika Anda tidak merasa mendaftar, abaikan email ini.
+                                            Jika Anda tidak merasa meminta reset password, abaikan email ini
+                                            — kata sandi Anda tidak akan berubah. Jangan bagikan kode ini
+                                            kepada siapapun. Tim Majelis Rental tidak pernah meminta kode
+                                            OTP via telepon atau chat.
                                         </p>
                                     </td>
                                 </tr>

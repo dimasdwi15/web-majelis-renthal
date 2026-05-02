@@ -29,7 +29,7 @@ class ForgotPasswordOtpController extends Controller
                 ->with('error', 'Sesi tidak ditemukan. Silakan masukkan email Anda kembali.');
         }
 
-        return view('emails.forgot-password-otp', compact('email'));
+        return view('auth.forgot-password-otp', compact('email'));
     }
 
     /**
@@ -89,7 +89,7 @@ class ForgotPasswordOtpController extends Controller
         $user = User::where('email', $email)->first();
 
         if ($user) {
-            $this->otpService->sendOtpToEmail($email);
+            $this->otpService->sendPasswordResetOtp($email);
         }
 
         return back()->with('status', 'otp-sent');

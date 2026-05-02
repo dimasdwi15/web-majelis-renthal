@@ -3,13 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Hash;
 
 class EmailOtp extends Model
 {
     protected $fillable = [
         'email',
-        'otp',
+        'otp',       // disimpan sebagai bcrypt hash
         'expires_at',
         'used',
     ];
@@ -19,17 +19,53 @@ class EmailOtp extends Model
         'used'       => 'boolean',
     ];
 
+    // ─── Factory method ───────────────────────────────────────────────────────
+
     /**
-     * Cek apakah OTP masih valid (belum expired & belum dipakai).
+     * Buat OTP baru untuk email tertentu.
+     *
+     * - Generate kode plain 6 digit
+     * - Hash kode sebelum disimpan ke DB
+     * - Hapus semua OTP lama milik email ini
+     * - Kembalikan instance dengan ->plain_otp agar bisa dikirim via email
+     *
+     * @return static  (dengan property sementara $plain_otp)
+     */
+    public static function createForEmail(string $email): static
+    {
+        // Hapus OTP lama milik email ini
+        static::where('email', $email)->delete();
+
+        // Generate kode 6 digit plain
+        $plainOtp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        // Simpan versi hash-nya ke DB
+        $instance = static::create([
+            'email'      => $email,
+            'otp'        => Hash::make($plainOtp),
+            'expires_at' => now()->addMinutes(10),
+            'used'       => false,
+        ]);
+
+        // Sisipkan plain OTP ke instance (tidak disimpan ke DB)
+        // agar OtpService bisa meneruskannya ke Mailable
+        $instance->plain_otp = $plainOtp;
+
+        return $instance;
+    }
+
+    // ─── Helper ───────────────────────────────────────────────────────────────
+
+    /**
+     * Cek apakah OTP masih berlaku (belum expired dan belum dipakai).
      */
     public function isValid(): bool
     {
-        return ! $this->used
-            && $this->expires_at->isFuture();
+        return ! $this->used && $this->expires_at->isFuture();
     }
 
     /**
-     * Tandai OTP sebagai sudah dipakai.
+     * Tandai OTP sudah dipakai.
      */
     public function markAsUsed(): void
     {
@@ -37,27 +73,11 @@ class EmailOtp extends Model
     }
 
     /**
-     * Generate OTP 6 digit acak.
+     * Verifikasi kode plain yang diinput user terhadap hash di DB.
+     * Gunakan method ini alih-alih hash_equals() langsung.
      */
-    public static function generateCode(): string
+    public function verifyPlain(string $plainCode): bool
     {
-        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    }
-
-    /**
-     * Buat OTP baru untuk email tertentu.
-     * OTP lama yang belum dipakai akan dihapus terlebih dahulu
-     * agar tidak menumpuk di database.
-     */
-    public static function createForEmail(string $email): self
-    {
-        // Hapus OTP lama untuk email ini
-        static::where('email', $email)->delete();
-
-        return static::create([
-            'email'      => $email,
-            'otp'        => static::generateCode(),
-            'expires_at' => Carbon::now()->addMinutes(10), // berlaku 10 menit
-        ]);
+        return Hash::check($plainCode, $this->otp);
     }
 }

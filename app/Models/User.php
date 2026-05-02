@@ -3,19 +3,13 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
-use Illuminate\Contracts\Auth\MustVerifyEmail; // <-- import interface
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Filament\Panel;
 use Filament\Models\Contracts\FilamentUser;
 
-/**
- * Implementasikan MustVerifyEmail agar Laravel tahu
- * bahwa model ini butuh verifikasi email.
- * Interface ini menyediakan kontrak: sendEmailVerificationNotification(),
- * hasVerifiedEmail(), dan markEmailAsVerified().
- */
 class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
     use HasFactory, Notifiable;
@@ -29,6 +23,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'alamat',
         'google_id',
         'avatar',
+        'email_verified_at', 
     ];
 
     protected $hidden = [
@@ -44,9 +39,6 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         ];
     }
 
-    /**
-     * Hanya admin & super_admin yang bisa akses Filament panel.
-     */
     public function canAccessPanel(Panel $panel): bool
     {
         return in_array($this->role, ['admin', 'super_admin']);

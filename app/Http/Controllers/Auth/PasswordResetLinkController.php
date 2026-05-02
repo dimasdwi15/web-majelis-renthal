@@ -38,7 +38,7 @@ class PasswordResetLinkController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if ($user) {
-            $this->otpService->sendOtpToEmail($user->email);
+            $this->otpService->sendPasswordResetOtp($user->email);
         }
 
         // Simpan email di session untuk dipakai di halaman OTP
