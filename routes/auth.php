@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\ForgotPasswordOtpController;
 
 // ─── Guest routes ─────────────────────────────────────────────────────────────
 
@@ -73,3 +74,14 @@ Route::middleware('auth')->group(function () {
     // Logout
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 });
+
+// Lupa password — OTP flow
+Route::get('/forgot-password',  [PasswordResetLinkController::class, 'create'])->name('password.request');
+Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+
+// ← TAMBAHKAN INI:
+Route::get('/forgot-password/otp',         [ForgotPasswordOtpController::class, 'create'])->name('password.otp');
+Route::post('/forgot-password/otp',        [ForgotPasswordOtpController::class, 'store'])->name('password.otp.verify');
+Route::post('/forgot-password/otp/resend', [ForgotPasswordOtpController::class, 'resend'])
+    ->middleware('throttle:6,1')
+    ->name('password.otp.resend');
