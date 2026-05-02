@@ -12,11 +12,21 @@ use App\Http\Controllers\User\PesananController;
 use App\Http\Controllers\User\ProfilController;
 use App\Http\Controllers\User\NotifikasiController;
 use App\Http\Controllers\CuacaController;
-
+use App\Http\Controllers\Auth\GoogleAuthController;
 
 Route::get('/', fn() => view('home'))->name('home');
 
-Route::get('/dashboard', fn() => view('dashboard'))
+// Dashboard — redirect berdasarkan role
+Route::get('/dashboard', function () {
+    /** @var \App\Models\User $user */
+    $user = \Illuminate\Support\Facades\Auth::user();
+
+    if (in_array($user->role, ['super_admin', 'admin'])) {
+        return redirect('/admin');
+    }
+
+    return redirect()->route('user.dashboard');
+})
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
@@ -43,26 +53,24 @@ Route::prefix('keranjang')->name('keranjang.')->group(function () {
 });
 
 // Checkout (harus login)
-Route::middleware(['auth'])->group(function () {
-    Route::get('/checkout',                              [CheckoutController::class, 'index'])->name('checkout.index');
-    Route::post('/checkout/proses',                     [CheckoutController::class, 'proses'])->name('checkout.proses');
-    Route::get('/checkout/sukses/{nomorTransaksi}',     [CheckoutController::class, 'sukses'])->name('checkout.sukses');
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/checkout',                          [CheckoutController::class, 'index'])->name('checkout.index');
+    Route::post('/checkout/proses',                  [CheckoutController::class, 'proses'])->name('checkout.proses');
+    Route::get('/checkout/sukses/{nomorTransaksi}',  [CheckoutController::class, 'sukses'])->name('checkout.sukses');
 });
 
 // USER AREA
-Route::middleware(['auth'])->prefix('akun')->name('user.')->group(function () {
+Route::middleware(['auth', 'verified'])->prefix('akun')->name('user.')->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Pesanan — letakkan route statis SEBELUM route param dinamis
     Route::prefix('pesanan')->name('pesanan.')->group(function () {
-        Route::get('/',                            [PesananController::class, 'index'])->name('index');
-        // Bayar denda (statis dulu)
-        Route::get('/bayar-denda/{denda}',         [PesananController::class, 'bayarDenda'])->name('bayar-denda');
-        Route::post('/bayar-denda/{denda}',        [PesananController::class, 'prosesBayarDenda'])->name('proses-bayar-denda');
-        // Detail transaksi (dinamis setelah statis)
-        Route::get('/{transaksi}',                 [PesananController::class, 'show'])->name('show');
+        Route::get('/',                        [PesananController::class, 'index'])->name('index');
+        Route::get('/bayar-denda/{denda}',     [PesananController::class, 'bayarDenda'])->name('bayar-denda');
+        Route::post('/bayar-denda/{denda}',    [PesananController::class, 'prosesBayarDenda'])->name('proses-bayar-denda');
+        Route::get('/{transaksi}',             [PesananController::class, 'show'])->name('show');
     });
 
     // Profil
@@ -75,9 +83,9 @@ Route::middleware(['auth'])->prefix('akun')->name('user.')->group(function () {
 
     // Notifikasi
     Route::prefix('notifikasi')->name('notifikasi.')->group(function () {
-        Route::get('/',                    [NotifikasiController::class, 'index'])->name('index');
-        Route::post('/baca-semua',         [NotifikasiController::class, 'bacaSemua'])->name('baca-semua');
-        Route::patch('/{notifikasi}/baca', [NotifikasiController::class, 'baca'])->name('baca');
+        Route::get('/',                [NotifikasiController::class, 'index'])->name('index');
+        Route::post('/baca-semua',     [NotifikasiController::class, 'bacaSemua'])->name('baca-semua');
+        Route::match(['patch', 'post'], '/{notifikasi}/baca', [NotifikasiController::class, 'baca'])->name('baca');
     });
 });
 
@@ -95,6 +103,12 @@ Route::post('/pesanan/{transaksi}/bayar-ulang', [PesananController::class, 'baya
 Route::post('/bayar-denda/{denda}', [PesananController::class, 'bayarDendaLangsung'])
     ->middleware('auth');
 
-// UNTUK OPEN WEATHER
+// Open Weather
 Route::get('/api/cuaca', [CuacaController::class, 'cek'])->name('cuaca.cek');
+
 require __DIR__ . '/auth.php';
+
+// Auth Google Firebase
+Route::post('/auth/google/token', [GoogleAuthController::class, 'handleToken'])
+    ->name('auth.google.token')
+    ->middleware('guest');

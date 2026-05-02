@@ -33,7 +33,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
+            ->authGuard('web')
             ->brandName('')
             ->renderHook(
                 'panels::topbar.start',

@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Enums\MetodePembayaran;
 use App\Enums\StatusTransaksi;
+use App\Events\NotifikasiDikirim;
 use App\Models\Denda;
 use App\Models\DendaFoto;
+use App\Models\Notifikasi;        
 use App\Models\Pembayaran;
 use App\Models\Transaksi;
 use Illuminate\Support\Facades\Auth;
@@ -203,9 +205,16 @@ class TransaksiService
         });
     }
 
-    // ── 5. KIRIM TAGIHAN DENDA (Cashless) ──────────────────────────────
+    // ── 5. KIRIM TAGIHAN DENDA (Cashless via Midtrans) ─────────────────
+    //
+    //  ✅ PERUBAHAN:
+    //     Setelah notifikasi disimpan ke DB via NotifikasiService,
+    //     kita fetch record-nya lalu broadcast real-time ke browser user
+    //     menggunakan event NotifikasiDikirim + Pusher.
+    //
     public function kirimTagihan(Transaksi $transaksi): string
     {
+        // ── A. Konfigurasi & generate Snap Token Midtrans ───────────────
         Config::$serverKey    = config('midtrans.server_key');
         Config::$isProduction = config('midtrans.is_production');
         Config::$isSanitized  = true;
@@ -227,6 +236,7 @@ class TransaksiService
 
         $snapToken = Snap::getSnapToken($params);
 
+        // ── B. Simpan / update record pembayaran denda ──────────────────
         Pembayaran::updateOrCreate(
             [
                 'transaksi_id' => $transaksi->id,
@@ -240,7 +250,10 @@ class TransaksiService
             ]
         );
 
+        // ── C. Simpan notifikasi ke database via NotifikasiService ──────
+        //      (tetap seperti semula — tidak diubah)
         $dendaTerbaru = $transaksi->denda()->latest()->first();
+
         $this->notifikasi->kirimTagihanDenda(
             userId: $transaksi->user_id,
             transaksiId: $transaksi->id,
@@ -248,6 +261,24 @@ class TransaksiService
             jumlahDenda: $totalDenda,
             nomorTransaksi: $transaksi->nomor_transaksi
         );
+
+        // ── D. ✅ BARU: Broadcast real-time ke browser user ─────────────
+        //
+        //      Ambil notifikasi yang BARU SAJA dibuat oleh kirimTagihanDenda()
+        //      di atas, lalu kirim event ke Pusher channel milik user.
+        //
+        //      Menggunakan query latest() karena NotifikasiService::kirimTagihanDenda()
+        //      tidak mengembalikan model — ini cara paling aman tanpa
+        //      mengubah signature NotifikasiService.
+        //
+        $notifikasiTerbaru = Notifikasi::where('user_id', $transaksi->user_id)
+            ->where('tipe', 'denda')
+            ->latest()
+            ->first();
+
+        if ($notifikasiTerbaru) {
+            broadcast(new NotifikasiDikirim($notifikasiTerbaru));
+        }
 
         return $snapToken;
     }
