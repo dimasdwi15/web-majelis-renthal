@@ -3,7 +3,6 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Widgets\PendapatanBulananChart;
-use App\Filament\Widgets\StatusTransaksiChart;
 use App\Filament\Widgets\TopBarangChart;
 use App\Filament\Widgets\TransaksiHarianChart;
 use App\Filament\Widgets\TransaksiOverviewWidget;

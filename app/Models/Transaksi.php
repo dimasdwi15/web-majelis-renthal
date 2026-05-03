@@ -32,7 +32,7 @@ class Transaksi extends Model
         'metode_pembayaran'   => MetodePembayaran::class,
         'tanggal_ambil'       => 'date',
         'tanggal_kembali'     => 'date',
-        'tanggal_dikembalikan'=> 'datetime',
+        'tanggal_dikembalikan' => 'datetime',
         'batas_pembayaran'    => 'datetime',
         'total_sewa'          => 'decimal:2',
         'total_denda'         => 'decimal:2',
@@ -103,8 +103,8 @@ class Transaksi extends Model
     public function pembayaranUtama()
     {
         return $this->hasOne(Pembayaran::class, 'transaksi_id')
-                    ->where('jenis', 'utama')
-                    ->latestOfMany();
+            ->where('jenis', 'utama')
+            ->latestOfMany();
     }
 
     /**
@@ -225,4 +225,10 @@ class Transaksi extends Model
 
         return now()->diffForHumans($this->batas_pembayaran, ['parts' => 2]);
     }
+
+    public function transaksiDetail()
+    {
+        return $this->hasMany(TransaksiDetail::class, 'transaksi_id', 'id');
+    }
+    
 }

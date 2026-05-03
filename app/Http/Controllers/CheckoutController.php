@@ -7,10 +7,12 @@ use App\Models\JaminanIdentitas;
 use App\Models\Pembayaran;
 use App\Models\Transaksi;
 use App\Models\TransaksiDetail;
+use App\Services\OcrIdentitasService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Midtrans\Config;
@@ -18,9 +20,13 @@ use Midtrans\Snap;
 
 class CheckoutController extends Controller
 {
-    /**
-     * Sinkronisasi data cart di session dengan data terbaru dari database.
-     */
+    public function __construct(
+        private readonly OcrIdentitasService $ocrService
+    ) {}
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  PRIVATE HELPERS
+    // ─────────────────────────────────────────────────────────────────────────
 
     private function refreshCartSession(): array
     {
@@ -59,8 +65,33 @@ class CheckoutController extends Controller
     }
 
     /**
-     * Tampilkan halaman checkout.
+     * Jalankan OCR dan kembalikan array hasil.
+     * Return null jika file tidak valid (sebelum OCR dijalankan).
      */
+    private function jalankanOcr(Request $request): ?array
+    {
+        if (!$request->hasFile('foto_identitas') || !$request->file('foto_identitas')->isValid()) {
+            return null;
+        }
+
+        return $this->ocrService->validasi(
+            $request->file('foto_identitas'),
+            $request->input('jenis_identitas', '')
+        );
+    }
+
+    private function errorResponse(bool $isAjax, string $message, int $status = 422)
+    {
+        if ($isAjax) {
+            return response()->json(['message' => $message], $status);
+        }
+        return back()->with('error', $message)->withInput();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  PUBLIC METHODS
+    // ─────────────────────────────────────────────────────────────────────────
+
     public function index()
     {
         $cart = $this->refreshCartSession();
@@ -73,62 +104,71 @@ class CheckoutController extends Controller
         return view('user.pages.checkout');
     }
 
-    /**
-     * Proses submit checkout.
-     *
-     * Untuk metode MIDTRANS:
-     *   - Request dikirim via AJAX (fetch API)
-     *   - Response: JSON { snap_token, redirect_url }
-     *   - Frontend membuka popup Midtrans Snap
-     *
-     * Untuk metode TUNAI (COD):
-     *   - Request dikirim via form POST biasa
-     *   - Response: redirect ke halaman sukses
-     */
     public function proses(Request $request)
     {
-        // Deteksi apakah request AJAX (untuk Midtrans)
         $isAjax = $request->expectsJson() || $request->ajax();
 
-        // ── Validasi input ──────────────────────────────────────────────
+        // ── 1. Validasi Input Dasar ───────────────────────────────────────────
         $validator = Validator::make($request->all(), [
             'tanggal_ambil'     => ['required', 'date', 'after_or_equal:today'],
             'tanggal_kembali'   => ['required', 'date', 'after:tanggal_ambil'],
             'metode_pembayaran' => ['required', 'in:midtrans,tunai'],
             'jenis_identitas'   => ['required', 'in:KTP,SIM,PELAJAR'],
-            'foto_identitas'    => ['required', 'image', 'max:5120'],
+            'foto_identitas'    => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
         ], [
             'tanggal_ambil.after_or_equal'  => 'Tanggal ambil minimal hari ini.',
             'tanggal_kembali.after'         => 'Tanggal kembali harus setelah tanggal ambil.',
             'foto_identitas.required'       => 'Foto identitas wajib diupload.',
             'foto_identitas.image'          => 'File harus berupa gambar (JPG/PNG/WEBP).',
+            'foto_identitas.mimes'          => 'Format file harus JPG, PNG, atau WEBP.',
             'foto_identitas.max'            => 'Ukuran foto maksimal 5MB.',
         ]);
 
         if ($validator->fails()) {
             if ($isAjax) {
-                return response()->json([
-                    'errors' => $validator->errors(),
-                ], 422);
+                return response()->json(['errors' => $validator->errors()], 422);
             }
             return back()->withErrors($validator)->withInput();
         }
 
-        // Refresh cart dari DB (harga & stok terbaru)
+        // ── 2. Jalankan OCR — SATU KALI di sini, hasilnya disimpan ───────────
+        $hasilOcr = $this->jalankanOcr($request);
+
+        if ($hasilOcr === null) {
+            return $this->errorResponse($isAjax, 'File foto identitas tidak valid.');
+        }
+
+        // Jika OCR berhasil baca gambar tapi tidak cocok dengan jenis identitas
+        // requiresManual = false berarti OCR berhasil jalan, tapi valid = false
+        if (!$hasilOcr['requiresManual'] && !$hasilOcr['valid']) {
+            Log::info('[OCR] Validasi gagal', [
+                'user_id'        => Auth::id(),
+                'jenis'          => $request->jenis_identitas,
+                'confidence'     => $hasilOcr['confidence'],
+                'matchedGroups'  => $hasilOcr['matchedGroups'],
+            ]);
+            return $this->errorResponse($isAjax, $hasilOcr['message']);
+        }
+
+        // Jika requiresManual = true, OCR tidak tersedia → lanjut checkout, admin cek fisik saat pengambilan
+        if ($hasilOcr['requiresManual']) {
+            Log::warning('[OCR] Tidak tersedia, lanjutkan checkout tanpa verifikasi OCR.', [
+                'user_id' => Auth::id(),
+                'jenis'   => $request->jenis_identitas,
+            ]);
+        }
+
+        // ── 3. Refresh Cart & Validasi Stok ──────────────────────────────────
         $cart = $this->refreshCartSession();
 
         if (empty($cart)) {
-            if ($isAjax) {
-                return response()->json(['message' => 'Keranjang kosong.'], 422);
-            }
-            return redirect()->route('katalog')->with('error', 'Keranjang kosong.');
+            return $this->errorResponse($isAjax, 'Keranjang kosong.');
         }
 
         $tglAmbil   = Carbon::parse($request->tanggal_ambil);
         $tglKembali = Carbon::parse($request->tanggal_kembali);
         $durasi     = $tglAmbil->diffInDays($tglKembali);
 
-        // ── Hitung total & validasi stok ───────────────────────────────
         $totalSewa  = 0;
         $itemsValid = [];
 
@@ -136,15 +176,11 @@ class CheckoutController extends Controller
             $barang = Barang::find($barangId);
 
             if (!$barang || $barang->status !== 'aktif') {
-                $msg = "Barang \"{$item['nama']}\" tidak tersedia.";
-                if ($isAjax) return response()->json(['message' => $msg], 422);
-                return back()->with('error', $msg);
+                return $this->errorResponse($isAjax, "Barang \"{$item['nama']}\" tidak tersedia.");
             }
 
             if ($request->metode_pembayaran === 'midtrans' && $barang->stok < $item['qty']) {
-                $msg = "Stok \"{$barang->nama}\" tidak mencukupi (tersisa {$barang->stok}).";
-                if ($isAjax) return response()->json(['message' => $msg], 422);
-                return back()->with('error', $msg);
+                return $this->errorResponse($isAjax, "Stok \"{$barang->nama}\" tidak mencukupi (tersisa {$barang->stok}).");
             }
 
             $subtotal   = $barang->harga_per_hari * $item['qty'] * $durasi;
@@ -158,7 +194,7 @@ class CheckoutController extends Controller
             ];
         }
 
-        // ── Buat transaksi dalam DB transaction ────────────────────────
+        // ── 4. Simpan ke Database (DB Transaction) ────────────────────────────
         DB::beginTransaction();
 
         try {
@@ -175,8 +211,6 @@ class CheckoutController extends Controller
                 'total_charge'      => 0,
                 'tanggal_ambil'     => $tglAmbil->toDateString(),
                 'tanggal_kembali'   => $tglKembali->toDateString(),
-                // batas_pembayaran diisi jika kolom ada di DB
-                // 'batas_pembayaran'  => now()->addHours(24),
             ]);
 
             foreach ($itemsValid as $barangId => $detail) {
@@ -189,26 +223,38 @@ class CheckoutController extends Controller
                     'subtotal'       => $detail['subtotal'],
                 ]);
 
-                // Stok langsung dikurangi untuk Midtrans (reserve stok).
-                // Untuk COD, stok dikurangi saat admin konfirmasi bayar.
                 if ($request->metode_pembayaran === 'midtrans') {
                     $detail['barang']->decrement('stok', $detail['qty']);
                 }
             }
 
-            // Simpan foto identitas
+            // ── Simpan Foto & Data Jaminan Identitas ──────────────────────────
+            // PENTING: store() dipanggil SETELAH OCR selesai (OCR butuh file asli)
             $pathFoto = $request->file('foto_identitas')
                 ->store('jaminan', 'public');
 
+            // Tentukan status OCR berdasarkan hasil yang sudah ada (tidak dipanggil ulang)
+            $statusOcr = match(true) {
+                $hasilOcr['requiresManual']                  => 'belum_diverifikasi',
+                $hasilOcr['valid'] && !$hasilOcr['requiresManual'] => 'terverifikasi_otomatis',
+                default                                      => 'gagal_otomatis',
+            };
+
             JaminanIdentitas::create([
-                'transaksi_id'    => $transaksi->id,
-                'user_id'         => Auth::id(),
-                'jenis_identitas' => $request->jenis_identitas,
-                'path_file'       => $pathFoto,
-                'status'          => 'aktif',
+                'transaksi_id'            => $transaksi->id,
+                'user_id'                 => Auth::id(),
+                'jenis_identitas'         => $request->jenis_identitas,
+                'path_file'               => $pathFoto,
+                'status'                  => 'aktif',
+                'status_ocr'              => $statusOcr,
+                'ocr_confidence'          => $hasilOcr['confidence'],
+                'perlu_verifikasi_manual' => $hasilOcr['requiresManual'],
+                'diverifikasi_pada'       => ($hasilOcr['valid'] && !$hasilOcr['requiresManual'])
+                                             ? now()
+                                             : null,
             ]);
 
-            // Buat record pembayaran utama
+            // ── Buat Record Pembayaran ─────────────────────────────────────────
             $pembayaran = Pembayaran::create([
                 'transaksi_id' => $transaksi->id,
                 'jenis'        => 'utama',
@@ -217,7 +263,7 @@ class CheckoutController extends Controller
                 'status'       => 'menunggu',
             ]);
 
-            // ── MIDTRANS: Generate Snap Token ───────────────────────────
+            // ── Midtrans Snap Token ───────────────────────────────────────────
             $snapToken = null;
 
             if ($request->metode_pembayaran === 'midtrans') {
@@ -226,7 +272,6 @@ class CheckoutController extends Controller
                 Config::$isSanitized  = true;
                 Config::$is3ds        = true;
 
-                // Build item details untuk Midtrans
                 $itemDetails = [];
                 foreach ($itemsValid as $barangId => $detail) {
                     $itemDetails[] = [
@@ -248,7 +293,6 @@ class CheckoutController extends Controller
                         'phone'      => Auth::user()->phone ?? '',
                     ],
                     'item_details' => $itemDetails,
-                    // Snap otomatis expired setelah 24 jam
                     'expiry' => [
                         'start_time' => now()->format('Y-m-d H:i:s O'),
                         'unit'       => 'hours',
@@ -257,12 +301,10 @@ class CheckoutController extends Controller
                 ];
 
                 $snapToken = Snap::getSnapToken($params);
-
-                // Simpan snap token ke kolom referensi_midtrans
                 $pembayaran->update(['referensi_midtrans' => $nomorTransaksi]);
             }
 
-            // Kirim notifikasi ke admin
+            // ── Notifikasi Admin ──────────────────────────────────────────────
             $metodeLabel = $request->metode_pembayaran === 'midtrans'
                 ? 'Cashless (Midtrans)'
                 : 'Tunai (COD)';
@@ -278,9 +320,8 @@ class CheckoutController extends Controller
 
             session()->forget('cart');
 
-            // ── Response ────────────────────────────────────────────────
+            // ── Response ──────────────────────────────────────────────────────
             if ($request->metode_pembayaran === 'midtrans') {
-                // Selalu kembalikan JSON — request dari AJAX di checkout.blade.php
                 return response()->json([
                     'snap_token'      => $snapToken,
                     'redirect_url'    => route('checkout.sukses', $transaksi->nomor_transaksi),
@@ -288,26 +329,28 @@ class CheckoutController extends Controller
                 ]);
             }
 
-            // COD → redirect biasa
             return redirect()->route('checkout.sukses', $transaksi->nomor_transaksi)
                 ->with('metode', 'tunai');
 
         } catch (\Exception $e) {
             DB::rollBack();
 
-            $msg = 'Terjadi kesalahan sistem. Silakan coba lagi. (' . $e->getMessage() . ')';
+            Log::error('[Checkout] Gagal proses transaksi', [
+                'user_id' => Auth::id(),
+                'error'   => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
 
-            if ($isAjax) {
-                return response()->json(['message' => $msg], 500);
+            $msg = 'Terjadi kesalahan sistem. Silakan coba lagi.';
+
+            if (app()->isLocal()) {
+                $msg .= ' (' . $e->getMessage() . ')';
             }
 
-            return back()->with('error', $msg);
+            return $this->errorResponse($isAjax, $msg, 500);
         }
     }
 
-    /**
-     * Halaman sukses / struk setelah checkout.
-     */
     public function sukses($nomorTransaksi)
     {
         $transaksi = Transaksi::with(['details.barang', 'jaminanIdentitas'])

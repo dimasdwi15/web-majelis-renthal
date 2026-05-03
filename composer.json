@@ -16,7 +16,9 @@
         "laravel/tinker": "^3.0",
         "midtrans/midtrans-php": "^2.6",
         "pusher/pusher-php-server": "^7.2",
-        "resend/resend-laravel": "^1.3"
+        "resend/resend-laravel": "^1.3",
+        "spatie/simple-excel": "^3.9",
+        "thiagoalessio/tesseract_ocr": "^2.13"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

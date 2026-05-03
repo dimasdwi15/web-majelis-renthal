@@ -48,8 +48,27 @@ return [
     ],
 
     // UNTUK API WEATHER
-     'openweather' => [
+    'openweather' => [
         'key' => env('OPENWEATHER_API_KEY', ''),
+    ],
+
+    // UNTUK OCR JAMINAN IDENTITAS
+    'tesseract' => [
+        'enabled' => env('TESSERACT_ENABLED', false),
+        'binary'  => env('TESSERACT_PATH', '/usr/bin/tesseract'),
+        'lang'    => env('OCR_LANG', 'ind+eng'),
+        'timeout' => env('OCR_TIMEOUT', 30),
+    ],
+
+    'ocr_space' => [
+        'enabled'  => env('OCR_SPACE_ENABLED', true),
+        'api_key'  => env('OCR_SPACE_API_KEY'),
+        'endpoint' => 'https://api.ocr.space/parse/image',
+        'timeout'  => 30,
+    ],
+
+    'ocr' => [
+        'fallback_manual' => env('OCR_FALLBACK_MANUAL', true),
     ],
 
 ];

@@ -13,6 +13,7 @@ use App\Http\Controllers\User\ProfilController;
 use App\Http\Controllers\User\NotifikasiController;
 use App\Http\Controllers\CuacaController;
 use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\ExportLaporanController;
 
 Route::get('/', fn() => view('home'))->name('home');
 
@@ -112,3 +113,7 @@ require __DIR__ . '/auth.php';
 Route::post('/auth/google/token', [GoogleAuthController::class, 'handleToken'])
     ->name('auth.google.token')
     ->middleware('guest');
+
+
+Route::get('/export-laporan-keuangan', [ExportLaporanController::class, 'export'])
+    ->name('export.laporan.keuangan');
