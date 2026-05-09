@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Database\Factories\UserFactory;
+use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -12,8 +12,8 @@ use Filament\Models\Contracts\FilamentUser;
 
 class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
-    use HasFactory, Notifiable;
-
+    use HasApiTokens, HasFactory, Notifiable;
+    
     protected $fillable = [
         'name',
         'email',
@@ -23,7 +23,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'alamat',
         'google_id',
         'avatar',
-        'email_verified_at', 
+        'email_verified_at',
     ];
 
     protected $hidden = [

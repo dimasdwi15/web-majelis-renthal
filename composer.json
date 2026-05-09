@@ -13,6 +13,7 @@
         "guzzlehttp/guzzle": "^7.10",
         "kreait/laravel-firebase": "^7.1",
         "laravel/framework": "^13.0",
+        "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "midtrans/midtrans-php": "^2.6",
         "pusher/pusher-php-server": "^7.2",

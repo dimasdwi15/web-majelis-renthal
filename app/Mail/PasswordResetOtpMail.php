@@ -14,7 +14,8 @@ class PasswordResetOtpMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public readonly EmailOtp $otp
+        public readonly EmailOtp $otp,
+        public readonly string $plainOtp
     ) {}
 
     public function envelope(): Envelope
@@ -28,6 +29,10 @@ class PasswordResetOtpMail extends Mailable
     {
         return new Content(
             view: 'emails.password-reset-otp',
+            with: [
+                'otp' => $this->otp,
+                'plainOtp' => $this->plainOtp,
+            ],
         );
     }
 }

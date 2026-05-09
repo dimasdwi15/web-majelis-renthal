@@ -8,6 +8,7 @@ use App\Models\EmailOtp;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * OtpService memusatkan semua logika OTP.
@@ -54,25 +55,21 @@ class OtpService
      * Verifikasi OTP berdasarkan email saja (tanpa User model).
      * Digunakan saat pending registration — user belum ada di DB.
      */
-    public function verifyOtpByEmail(string $email, string $inputCode): bool
+    public function verifyOtpByEmail(string $email, string $otp): bool
     {
-        $otp = EmailOtp::where('email', $email)
-            ->where('used', false)
+        $record = EmailOtp::where('email', $email)
             ->latest()
             ->first();
 
-        if (! $otp || ! $otp->isValid()) {
+        if (! $record) {
             return false;
         }
 
-        // Gunakan Hash::check() karena OTP disimpan sebagai bcrypt hash
-        if (! $otp->verifyPlain($inputCode)) {
+        if ($record->expires_at->isPast()) {
             return false;
         }
 
-        $otp->markAsUsed();
-
-        return true;
+        return Hash::check($otp, $record->otp);
     }
 
     /**
@@ -115,12 +112,26 @@ class OtpService
 
     // ─── Password Reset ───────────────────────────────────────────────────────
 
-    public function sendPasswordResetOtp(string $email): EmailOtp
+    public function sendPasswordResetOtp(string $email): array
     {
-        $otp = EmailOtp::createForEmail($email);
+        // OTP asli 6 digit
+        $plainOtp = (string) random_int(100000, 999999);
 
-        Mail::to($email)->send(new PasswordResetOtpMail($otp));
+        // Simpan hash ke database
+        $otp = EmailOtp::create([
+            'email' => $email,
+            'otp' => Hash::make($plainOtp),
+            'expires_at' => now()->addMinutes(10),
+        ]);
 
-        return $otp;
+        // Kirim OTP asli ke email
+        Mail::to($email)->send(
+            new PasswordResetOtpMail($otp, $plainOtp)
+        );
+
+        return [
+            'otp' => $otp,
+            'plain_otp' => $plainOtp,
+        ];
     }
 }

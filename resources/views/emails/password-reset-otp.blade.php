@@ -91,7 +91,7 @@
                                             KODE RESET PASSWORD
                                         </p>
                                         <p style="font-size:52px;font-weight:900;color:#251D1D;letter-spacing:0.4em;margin:0 0 0 0.4em;line-height:1;font-variant-numeric:tabular-nums;">
-                                            {{ $otp->otp }}
+                                            {{ $plainOtp }}
                                         </p>
                                     </td>
                                 </tr>
@@ -143,7 +143,7 @@
                                     </td>
                                     <td style="padding-left:10px;font-size:13px;color:#5c5852;line-height:1.6;padding-top:3px;">
                                         Ketik atau tempel kode
-                                        <strong style="color:#251D1D;letter-spacing:0.05em;font-size:14px;">{{ $otp->otp }}</strong>
+                                        <strong style="color:#251D1D;letter-spacing:0.05em;font-size:14px;">{{ $plainOtp }}</strong>
                                         pada kotak input yang tersedia
                                     </td>
                                 </tr>
