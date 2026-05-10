@@ -6,12 +6,24 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\URL;
 use Filament\Support\Facades\FilamentAsset;
 use Filament\Support\Assets\Css;
+use App\Repositories\BarangRepository;
+use App\Repositories\Contracts\BarangRepositoryInterface;
+use App\Services\AI\GroqVisionService;
+use App\Services\Recommendation\ImageRecommendationService;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // Repository binding
+        $this->app->bind(
+            BarangRepositoryInterface::class,
+            BarangRepository::class,
+        );
+
+        // Service singleton (reuse same instance per request)
+        $this->app->singleton(GroqVisionService::class);
+        $this->app->singleton(ImageRecommendationService::class);
     }
 
     public function boot(): void

@@ -71,6 +71,11 @@ class Barang extends Model
      */
     public function tags(): BelongsToMany
     {
-        return $this->belongsToMany(Tag::class, 'barang_tag');
+        return $this->belongsToMany(Tag::class, 'barang_tag', 'barang_id', 'tag_id');
+    }
+    
+    public function fotos(): HasMany
+    {
+        return $this->hasMany(BarangFoto::class);
     }
 }

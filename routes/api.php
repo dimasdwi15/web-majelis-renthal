@@ -4,7 +4,8 @@ use App\Http\Controllers\CuacaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\AuthController;
 use App\Http\Controllers\API\BarangController;
-use App\Http\Controllers\API\ProfileController;  // ← TAMBAHAN
+use App\Http\Controllers\API\ProfileController;
+use App\Http\Controllers\API\ImageRecommendationController; 
 
 // ─────────────────────────────────────────────────────────────────
 // Cuaca & Lokasi (public)
@@ -14,23 +15,31 @@ Route::get('/lokasi/cari',    [CuacaController::class, 'cariLokasi']);
 Route::get('/lokasi/reverse', [CuacaController::class, 'reverseLokasi']);
 
 // ─────────────────────────────────────────────────────────────────
-// Katalog Barang & Kategori (public — tidak perlu token)
+// Katalog Barang & Kategori (public)
 // ─────────────────────────────────────────────────────────────────
-Route::get('/kategori',       [BarangController::class, 'kategori']);
+Route::get('/kategori', [BarangController::class, 'kategori']);
 
 Route::prefix('barang')->group(function () {
-    Route::get('/',        [BarangController::class, 'index']);
-    Route::get('/{id}',    [BarangController::class, 'show']);
+    Route::get('/',     [BarangController::class, 'index']);
+    Route::get('/{id}', [BarangController::class, 'show']);
 });
 
 // ─────────────────────────────────────────────────────────────────
-// Auth Routes (public — tidak perlu token)
+// AI Image Recommendation (public — guest boleh pakai)
+// POST /api/recommendation/image  → upload gambar, dapat rekomendasi
+// ─────────────────────────────────────────────────────────────────
+Route::prefix('recommendation')->group(function () {
+    Route::post('/image', [ImageRecommendationController::class, 'analyze']);
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Auth Routes (public)
 // ─────────────────────────────────────────────────────────────────
 Route::prefix('auth')->group(function () {
-    Route::post('register',        [AuthController::class, 'register']);
-    Route::post('login',           [AuthController::class, 'login']);
-    Route::post('google',          [AuthController::class, 'googleAuth']);
-    Route::post('set-password',    [AuthController::class, 'setPassword']);
+    Route::post('register',     [AuthController::class, 'register']);
+    Route::post('login',        [AuthController::class, 'login']);
+    Route::post('google',       [AuthController::class, 'googleAuth']);
+    Route::post('set-password', [AuthController::class, 'setPassword']);
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -44,13 +53,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('logout', [AuthController::class, 'logout']);
     });
 
-    // ── Profile ──────────────────────────────────────────────────
-    // GET    /api/profile                → ambil profil user login
-    // PUT    /api/profile                → update nama, phone, alamat
-    // POST   /api/profile/change-password → ganti kata sandi
+    // Profile
     Route::prefix('profile')->group(function () {
-        Route::get('/',                 [ProfileController::class, 'show']);
-        Route::put('/',                 [ProfileController::class, 'update']);
-        Route::post('change-password',  [ProfileController::class, 'changePassword']);
+        Route::get('/',                [ProfileController::class, 'show']);
+        Route::put('/',                [ProfileController::class, 'update']);
+        Route::post('change-password', [ProfileController::class, 'changePassword']);
+    });
+
+    // AI Recommendation — riwayat (hanya user login)
+    Route::prefix('recommendation')->group(function () {
+        Route::get('/history', [ImageRecommendationController::class, 'history']);
     });
 });

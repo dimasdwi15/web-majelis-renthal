@@ -9,11 +9,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Filament\Panel;
 use Filament\Models\Contracts\FilamentUser;
+use App\Models\RecommendationHistory;
 
 class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
     use HasApiTokens, HasFactory, Notifiable;
-    
+
     protected $fillable = [
         'name',
         'email',
@@ -69,5 +70,10 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
     public function emailOtps()
     {
         return $this->hasMany(EmailOtp::class, 'email', 'email');
+    }
+
+    public function recommendationHistories()
+    {
+        return $this->hasMany(RecommendationHistory::class);
     }
 }

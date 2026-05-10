@@ -6,12 +6,6 @@ return [
     |--------------------------------------------------------------------------
     | Third Party Services
     |--------------------------------------------------------------------------
-    |
-    | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
-    |
     */
 
     'postmark' => [
@@ -23,7 +17,7 @@ return [
     ],
 
     'ses' => [
-        'key' => env('AWS_ACCESS_KEY_ID'),
+        'key'    => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
@@ -31,28 +25,32 @@ return [
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
-            'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
+            'channel'              => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
 
     // =========================================================================
-    // Groq AI — Gratis ~14.400 request/hari
+    // Groq AI — ~14.400 request/hari gratis
     // Daftar API Key di: https://console.groq.com → API Keys
+    //
+    // Vision model: llama-3.2-11b-vision-preview (mendukung analisis gambar)
+    // Chat model  : llama-3.3-70b-versatile       (untuk chat/teks)
     // =========================================================================
     'ai' => [
-        'provider'     => env('AI_PROVIDER', 'groq'),
-        'groq_api_key' => env('GROQ_API_KEY'),
-        'groq_model'   => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
-        'ollama_url'   => env('OLLAMA_URL', 'http://localhost:11434'),
-        'ollama_model' => env('OLLAMA_MODEL', 'llama3.2'),
+        'provider'           => env('AI_PROVIDER', 'groq'),
+        'groq_api_key'       => env('GROQ_API_KEY'),
+        'groq_model'         => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'groq_vision_model'  => env('GROQ_VISION_MODEL', 'llama-3.2-11b-vision-preview'),
+        'ollama_url'         => env('OLLAMA_URL', 'http://localhost:11434'),
+        'ollama_model'       => env('OLLAMA_MODEL', 'llama3.2'),
     ],
 
-    // UNTUK API WEATHER
+    // ── OpenWeather ───────────────────────────────────────────────────────────
     'openweather' => [
         'key' => env('OPENWEATHER_API_KEY', ''),
     ],
 
-    // UNTUK OCR JAMINAN IDENTITAS
+    // ── Tesseract OCR ─────────────────────────────────────────────────────────
     'tesseract' => [
         'enabled' => env('TESSERACT_ENABLED', false),
         'binary'  => env('TESSERACT_PATH', '/usr/bin/tesseract'),
@@ -60,6 +58,7 @@ return [
         'timeout' => env('OCR_TIMEOUT', 30),
     ],
 
+    // ── OCR Space ────────────────────────────────────────────────────────────
     'ocr_space' => [
         'enabled'  => env('OCR_SPACE_ENABLED', true),
         'api_key'  => env('OCR_SPACE_API_KEY'),
