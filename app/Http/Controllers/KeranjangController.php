@@ -24,16 +24,17 @@ class KeranjangController extends Controller
         }
 
         // Ambil semua barang sekaligus — hindari N+1 query
+        // keyBy dengan cast ke string agar konsisten dengan kunci cart (string)
         $barangList = Barang::with('fotoUtama')
             ->whereIn('id', array_keys($cart))
             ->get()
-            ->keyBy('id');
+            ->keyBy(fn ($b) => (string) $b->id);
 
         foreach ($cart as $id => $item) {
-            $barang = $barangList->get($id);
+            $barang = $barangList->get((string) $id);
 
             // Keluarkan dari cart jika barang tidak ada atau nonaktif
-            if (!$barang || $barang->status !== 'aktif') {
+            if (! $barang || $barang->status !== 'aktif') {
                 unset($cart[$id]);
                 continue;
             }
@@ -70,8 +71,7 @@ class KeranjangController extends Controller
 
     /**
      * Endpoint AJAX untuk menyegarkan data cart dari DB.
-     * Dipanggil oleh Alpine store setiap kali cart panel dibuka,
-     * dan checkout component saat halaman dimuat.
+     * Dipanggil oleh Alpine store setiap kali cart panel dibuka.
      */
     public function refresh()
     {
@@ -91,7 +91,7 @@ class KeranjangController extends Controller
     {
         $barang = Barang::with('fotoUtama')->find($barangId);
 
-        if (!$barang || $barang->status !== 'aktif' || $barang->stok < 1) {
+        if (! $barang || $barang->status !== 'aktif' || $barang->stok < 1) {
             return response()->json([
                 'success' => false,
                 'message' => 'Barang tidak tersedia.',
@@ -131,6 +131,39 @@ class KeranjangController extends Controller
     }
 
     /**
+     * Sewa langsung: tambahkan item ke keranjang, lalu redirect ke checkout.
+     * Jika item sudah ada di keranjang, qty dipertahankan (tidak digandakan).
+     * Digunakan oleh tombol "Sewa Sekarang" di halaman katalog.
+     */
+    public function sewaLangsung($barangId)
+    {
+        $barang = Barang::with('fotoUtama')->find($barangId);
+
+        if (! $barang || $barang->status !== 'aktif' || $barang->stok < 1) {
+            return redirect()->route('katalog')
+                ->with('error', 'Barang tidak tersedia atau stok habis.');
+        }
+
+        $cart = session('cart', []);
+        $id   = (string) $barang->id;
+
+        // Tambahkan jika belum ada; jika sudah ada, biarkan qty-nya
+        if (! isset($cart[$id])) {
+            $cart[$id] = [
+                'barang_id' => $barang->id,
+                'nama'      => $barang->nama,
+                'harga'     => (float) $barang->harga_per_hari,
+                'stok'      => $barang->stok,
+                'foto'      => $barang->fotoUtama?->path_foto,
+                'qty'       => 1,
+            ];
+            session(['cart' => $cart]);
+        }
+
+        return redirect()->route('checkout.index');
+    }
+
+    /**
      * Hapus satu item dari keranjang via AJAX.
      */
     public function hapus(Request $request, $barangId)
@@ -155,7 +188,7 @@ class KeranjangController extends Controller
         $id   = (string) $barangId;
         $qty  = max(1, (int) $request->qty);
 
-        if (!isset($cart[$id])) {
+        if (! isset($cart[$id])) {
             return response()->json(['success' => false, 'message' => 'Item tidak ditemukan.'], 404);
         }
 

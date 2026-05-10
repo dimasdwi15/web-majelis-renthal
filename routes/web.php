@@ -44,13 +44,29 @@ Route::get('/tentang-kami', fn() => view('user.pages.about'))->name('about');
 Route::get('/katalog', [KatalogController::class, 'index'])->name('katalog');
 
 // Keranjang — session-based, tidak perlu login
+// Keranjang — session-based, tidak perlu login
 Route::prefix('keranjang')->name('keranjang.')->group(function () {
-    Route::get('/',                    [KeranjangController::class, 'index'])->name('index');
-    Route::post('/tambah/{barang}',    [KeranjangController::class, 'tambah'])->name('tambah');
-    Route::patch('/update/{barangId}', [KeranjangController::class, 'update'])->name('update');
-    Route::delete('/hapus/{barangId}', [KeranjangController::class, 'hapus'])->name('hapus');
-    Route::delete('/kosongkan',        [KeranjangController::class, 'kosongkan'])->name('kosongkan');
-    Route::get('/refresh',             [KeranjangController::class, 'refresh'])->name('refresh');
+
+    Route::get('/', [KeranjangController::class, 'index'])
+        ->name('index');
+
+    Route::post('/tambah/{barang}', [KeranjangController::class, 'tambah'])
+        ->name('tambah');
+
+    Route::get('/sewa-langsung/{barang}', [KeranjangController::class, 'sewaLangsung'])
+        ->name('sewa-langsung');
+
+    Route::patch('/update/{barangId}', [KeranjangController::class, 'update'])
+        ->name('update');
+
+    Route::delete('/hapus/{barangId}', [KeranjangController::class, 'hapus'])
+        ->name('hapus');
+
+    Route::delete('/kosongkan', [KeranjangController::class, 'kosongkan'])
+        ->name('kosongkan');
+
+    Route::get('/refresh', [KeranjangController::class, 'refresh'])
+        ->name('refresh');
 });
 
 // Checkout (harus login)

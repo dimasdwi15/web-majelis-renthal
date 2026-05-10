@@ -12,12 +12,15 @@ class KatalogController extends Controller
     {
         $kategori = KategoriBarang::where('aktif', 1)
             ->withCount([
-                'barang as barang_aktif_count' => fn($q) => $q->where('status', 'aktif'),
+                'barang as barang_aktif_count' => fn ($q) => $q->where('status', 'aktif'),
             ])
             ->orderBy('nama')
             ->get();
 
-        $query = Barang::with(['kategori', 'fotoUtama', 'foto'])  // ← tambah 'fotos'
+        // Pastikan eager-load menggunakan nama relasi yang benar:
+        // - fotoUtama : hasOne BarangFoto (foto pertama / utama)
+        // - fotos     : hasMany BarangFoto (semua foto, untuk galeri di modal detail)
+        $query = Barang::with(['kategori', 'fotoUtama', 'fotos'])
             ->where('status', 'aktif');
 
         // Filter: pencarian teks
