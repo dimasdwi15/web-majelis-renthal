@@ -106,22 +106,66 @@ class OcrSpaceService
 
     /**
      * Siapkan gambar sebagai base64.
+     * - Buat SALINAN temp file sebelum diproses GD (fix: Windows/Laragon kadang
+     *   mengosongkan path UploadedFile asli setelah GD mengaksesnya).
      * - Resize jika dimensi terlalu besar
      * - Kompres jika ukuran file melebihi batas
      * - Return format: "data:image/jpeg;base64,..."
      */
     private function siapkanBase64(UploadedFile $file): ?string
     {
-        $path = $file->getPathname();
+        // ── PERBAIKAN UTAMA ───────────────────────────────────────────────────
+        // Di Windows (Laragon), GD library kadang mengganggu temp file PHP asli
+        // sehingga UploadedFile->getPathname() menjadi '' setelah operasi GD.
+        // Solusi: kerja di SALINAN file terpisah, UploadedFile asli tetap utuh
+        // untuk store() yang dipanggil sesudah OCR selesai.
+        // ─────────────────────────────────────────────────────────────────────
+        $originalPath = $file->getRealPath() ?: $file->getPathname();
 
+        if (empty($originalPath) || !is_file($originalPath)) {
+            Log::warning('[OCR.space] Path file upload tidak valid atau file tidak ditemukan.', [
+                'path' => $originalPath,
+            ]);
+            return null;
+        }
+
+        $ekstensi = strtolower($file->getClientOriginalExtension()) ?: 'jpg';
+        $tempPath = tempnam(sys_get_temp_dir(), 'ocr_tmp_') . '.' . $ekstensi;
+
+        if (!copy($originalPath, $tempPath)) {
+            Log::warning('[OCR.space] Gagal membuat salinan temp file.', [
+                'dari' => $originalPath,
+                'ke'   => $tempPath,
+            ]);
+            // Fallback: coba pakai path asli langsung (perilaku lama)
+            $tempPath = $originalPath;
+            $shouldDeleteTemp = false;
+        } else {
+            $shouldDeleteTemp = true;
+        }
+
+        try {
+            return $this->prosesGambar($tempPath, $ekstensi);
+        } finally {
+            // Hapus salinan temp, pastikan file asli TIDAK ikut terhapus
+            if ($shouldDeleteTemp && $tempPath !== $originalPath && is_file($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
+    }
+
+    /**
+     * Proses gambar dari path tertentu: resize & kompres ke base64 JPEG.
+     */
+    private function prosesGambar(string $path, string $ekstensi): ?string
+    {
         // Cek apakah GD tersedia
         if (!extension_loaded('gd')) {
             // GD tidak ada — kirim file mentah tanpa compress
             $raw = file_get_contents($path);
             if ($raw === false) return null;
 
-            $ekstensi = strtolower($file->getClientOriginalExtension());
-            $mime = match($ekstensi) {
+            $mime = match ($ekstensi) {
                 'jpg', 'jpeg' => 'image/jpeg',
                 'png'         => 'image/png',
                 'webp'        => 'image/webp',
@@ -135,14 +179,14 @@ class OcrSpaceService
             // Deteksi tipe gambar
             $info = @getimagesize($path);
             if (!$info) {
-                // Bukan gambar valid
+                Log::warning('[OCR.space] File bukan gambar valid.', ['path' => $path]);
                 return null;
             }
 
             [$lebar, $tinggi, $tipe] = $info;
 
             // Buat GD resource dari file
-            $src = match($tipe) {
+            $src = match ($tipe) {
                 IMAGETYPE_JPEG => imagecreatefromjpeg($path),
                 IMAGETYPE_PNG  => imagecreatefrompng($path),
                 IMAGETYPE_WEBP => imagecreatefromwebp($path),
@@ -151,7 +195,10 @@ class OcrSpaceService
                 default        => null,
             };
 
-            if (!$src) return null;
+            if (!$src) {
+                Log::warning('[OCR.space] GD gagal membaca gambar.', ['tipe' => $tipe]);
+                return null;
+            }
 
             // Resize jika dimensi terlalu besar
             if ($lebar > self::MAX_DIMENSION || $tinggi > self::MAX_DIMENSION) {
@@ -194,8 +241,8 @@ class OcrSpaceService
             imagedestroy($src);
 
             Log::info('[OCR.space] Gambar dikompres.', [
-                'kualitas'    => $kualitas,
-                'ukuran_kb'   => round(strlen($output) / 1024, 1),
+                'kualitas'  => $kualitas,
+                'ukuran_kb' => round(strlen($output) / 1024, 1),
             ]);
 
             return 'data:image/jpeg;base64,' . base64_encode($output);

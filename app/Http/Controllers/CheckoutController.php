@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Midtrans\Config;
@@ -131,26 +132,37 @@ class CheckoutController extends Controller
             return back()->withErrors($validator)->withInput();
         }
 
-        // ── 2. Jalankan OCR — SATU KALI di sini, hasilnya disimpan ───────────
+        // ── 2. Baca konten file ke memori SEBELUM OCR dijalankan ─────────────
+        // PENTING (fix Windows/Laragon): PHP di Windows menginvalidasi path
+        // internal UploadedFile setelah file diakses oleh GD / ob_start,
+        // sehingga ->store() yang dipanggil SESUDAH OCR gagal dengan
+        // "Path must not be empty". Solusi: baca konten + ekstensi ke memori
+        // sekarang, lalu simpan via Storage::put() setelah OCR selesai.
+        $fotoFile     = $request->file('foto_identitas');
+        $fotoKonten   = file_get_contents($fotoFile->getRealPath() ?: $fotoFile->getPathname());
+        $fotoEkstensi = $fotoFile->getClientOriginalExtension() ?: 'jpg';
+
+        if ($fotoKonten === false || $fotoKonten === '') {
+            return $this->errorResponse($isAjax, 'File foto identitas tidak dapat dibaca.');
+        }
+
+        // ── 3. Jalankan OCR — file asli boleh invalid setelah ini ────────────
         $hasilOcr = $this->jalankanOcr($request);
 
         if ($hasilOcr === null) {
             return $this->errorResponse($isAjax, 'File foto identitas tidak valid.');
         }
 
-        // Jika OCR berhasil baca gambar tapi tidak cocok dengan jenis identitas
-        // requiresManual = false berarti OCR berhasil jalan, tapi valid = false
         if (!$hasilOcr['requiresManual'] && !$hasilOcr['valid']) {
             Log::info('[OCR] Validasi gagal', [
-                'user_id'        => Auth::id(),
-                'jenis'          => $request->jenis_identitas,
-                'confidence'     => $hasilOcr['confidence'],
-                'matchedGroups'  => $hasilOcr['matchedGroups'],
+                'user_id'       => Auth::id(),
+                'jenis'         => $request->jenis_identitas,
+                'confidence'    => $hasilOcr['confidence'],
+                'matchedGroups' => $hasilOcr['matchedGroups'],
             ]);
             return $this->errorResponse($isAjax, $hasilOcr['message']);
         }
 
-        // Jika requiresManual = true, OCR tidak tersedia → lanjut checkout, admin cek fisik saat pengambilan
         if ($hasilOcr['requiresManual']) {
             Log::warning('[OCR] Tidak tersedia, lanjutkan checkout tanpa verifikasi OCR.', [
                 'user_id' => Auth::id(),
@@ -158,7 +170,7 @@ class CheckoutController extends Controller
             ]);
         }
 
-        // ── 3. Refresh Cart & Validasi Stok ──────────────────────────────────
+        // ── 4. Refresh Cart & Validasi Stok ──────────────────────────────────
         $cart = $this->refreshCartSession();
 
         if (empty($cart)) {
@@ -194,8 +206,10 @@ class CheckoutController extends Controller
             ];
         }
 
-        // ── 4. Simpan ke Database (DB Transaction) ────────────────────────────
+        // ── 5. Simpan ke Database (DB Transaction) ────────────────────────────
         DB::beginTransaction();
+
+        $pathFoto = null; // track untuk cleanup jika rollback
 
         try {
             $nomorTransaksi = 'TRX-' . strtoupper(Str::random(8)) . '-' . now()->format('ymd');
@@ -228,16 +242,18 @@ class CheckoutController extends Controller
                 }
             }
 
-            // ── Simpan Foto & Data Jaminan Identitas ──────────────────────────
-            // PENTING: store() dipanggil SETELAH OCR selesai (OCR butuh file asli)
-            $pathFoto = $request->file('foto_identitas')
-                ->store('jaminan', 'public');
+            // ── Simpan Foto Jaminan ───────────────────────────────────────────
+            // Gunakan Storage::put() dengan konten yang sudah dibaca ke memori,
+            // bukan ->store() pada UploadedFile yang sudah invalid setelah OCR.
+            $namaFile = Str::random(40) . '.' . $fotoEkstensi;
+            $pathFoto = 'jaminan/' . $namaFile;
+            Storage::disk('public')->put($pathFoto, $fotoKonten);
 
-            // Tentukan status OCR berdasarkan hasil yang sudah ada (tidak dipanggil ulang)
-            $statusOcr = match(true) {
-                $hasilOcr['requiresManual']                  => 'belum_diverifikasi',
+            // Tentukan status OCR
+            $statusOcr = match (true) {
+                $hasilOcr['requiresManual']                        => 'belum_diverifikasi',
                 $hasilOcr['valid'] && !$hasilOcr['requiresManual'] => 'terverifikasi_otomatis',
-                default                                      => 'gagal_otomatis',
+                default                                            => 'gagal_otomatis',
             };
 
             JaminanIdentitas::create([
@@ -334,6 +350,11 @@ class CheckoutController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+
+            // Hapus file yang sudah terlanjur diupload jika transaksi gagal
+            if ($pathFoto && Storage::disk('public')->exists($pathFoto)) {
+                Storage::disk('public')->delete($pathFoto);
+            }
 
             Log::error('[Checkout] Gagal proses transaksi', [
                 'user_id' => Auth::id(),
