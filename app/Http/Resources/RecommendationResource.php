@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class RecommendationResource extends JsonResource
 {
@@ -22,7 +21,7 @@ class RecommendationResource extends JsonResource
     {
         $fotoUtama = $this->fotos?->first();
 
-        $fotoUrl   = $fotoUtama
+        $fotoUrl = $fotoUtama
             ? $this->storageUrl($fotoUtama->path_foto)
             : null;
 
@@ -56,12 +55,17 @@ class RecommendationResource extends JsonResource
     }
 
     /**
-     * Buat URL publik dari path di storage/app/public.
-     * Memakai asset() agar Intelephense tidak komplain soal url().
+     * Build public URL dari path storage — mengikuti host request saat ini.
+     *
+     * FIX: Dulu pakai asset() yang membaca APP_URL (.env = localhost),
+     * sehingga URL gambar selalu mengarah ke localhost meski diakses via ngrok.
+     *
+     * Solusi: pakai request()->getSchemeAndHttpHost() agar URL mengikuti
+     * host aktual (ngrok / IP lokal / domain production).
      */
     private function storageUrl(string $path): string
     {
-        // asset('storage/...') = sama persis dengan Storage::disk('public')->url(...)
-        return asset('storage/' . ltrim($path, '/'));
+        $host = request()->getSchemeAndHttpHost();
+        return $host . '/storage/' . ltrim($path, '/');
     }
 }
