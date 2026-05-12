@@ -17,12 +17,9 @@
         rel="stylesheet" />
 
     {{--
-        ╔══════════════════════════════════════════════════════════════════════╗
-        ║  JANGAN muat Alpine.js di sini!                                      ║
-        ║  Alpine sudah dimuat oleh cart.blade.php (via @once) yang di-include ║
-        ║  navbar.blade.php. Memuat dua kali menyebabkan Alpine store ter-      ║
-        ║  reset sehingga keranjang tiba-tiba kosong saat panel dibuka.         ║
-        ╚══════════════════════════════════════════════════════════════════════╝
+        Jangan muat Alpine.js kedua kalinya di halaman ini (mis. CDN tambahan).
+        Alpine sudah di-start lewat Vite `resources/js/app.js`. Muatan ganda
+        menjalankan `alpine:init` ulang dan mengosongkan store keranjang.
     --}}
 
     <style>
@@ -545,24 +542,11 @@
                                 if (this.loading) return;
                                 this.loading = true;
                                 try {
-                                    const res = await fetch('{{ route('keranjang.tambah', $item->id) }}', {
-                                        method: 'POST',
-                                        headers: {
-                                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
-                                            'Accept': 'application/json',
-                                        },
-                                    });
-                                    const data = await res.json();
-                                    if (res.ok && data.success) {
-                                        $store.cart.syncItems(data.cart);
+                                    const ok = await Alpine.store('cart').tambahItem({{ $item->id }});
+                                    if (ok) {
                                         this.added = true;
-                                        Alpine.store('toast').flash(data.message, 'success');
                                         setTimeout(() => this.added = false, 2500);
-                                    } else {
-                                        Alpine.store('toast').flash(data.message ?? 'Gagal menambahkan item.', 'error');
                                     }
-                                } catch (e) {
-                                    Alpine.store('toast').flash('Terjadi kesalahan.', 'error');
                                 } finally {
                                     this.loading = false;
                                 }
@@ -952,23 +936,19 @@
                                         syncItems() agar state & version counter selalu konsisten.
                                     --}}
                                     <button type="button" x-data="{ busy: false, done: false }"
-                                        @click="
-                                            if(busy) return; busy=true;
-                                            fetch(item.tambahUrl,{method:'POST',headers:{'X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]').content,'Accept':'application/json'}})
-                                            .then(r=>r.json())
-                                            .then(d=>{
-                                                if(d.success){
-                                                    $store.cart.syncItems(d.cart);
-                                                    Alpine.store('toast').flash(d.message,'success');
-                                                    done=true;
-                                                    setTimeout(()=>done=false,2500);
-                                                } else {
-                                                    Alpine.store('toast').flash(d.message??'Gagal.','error');
+                                        @click="(async () => {
+                                            if (busy || !item?.id) return;
+                                            busy = true;
+                                            try {
+                                                const ok = await $store.cart.tambahItem(item.id);
+                                                if (ok) {
+                                                    done = true;
+                                                    setTimeout(() => done = false, 2500);
                                                 }
-                                            })
-                                            .catch(()=>Alpine.store('toast').flash('Terjadi kesalahan.','error'))
-                                            .finally(()=>busy=false)
-                                        "
+                                            } finally {
+                                                busy = false;
+                                            }
+                                        })()"
                                         :class="done ? 'border-green-500 bg-green-50 text-green-700' :
                                             'border-[#c8bfa8] text-[#2e2a1e] hover:bg-[#2e2a1e] hover:text-white hover:border-[#2e2a1e]'"
                                         class="flex-1 flex items-center justify-center gap-2 py-3 border-[1.5px] rounded-xl font-syne font-bold text-[10px] tracking-[0.12em] uppercase transition-all duration-200 hover:-translate-y-0.5">

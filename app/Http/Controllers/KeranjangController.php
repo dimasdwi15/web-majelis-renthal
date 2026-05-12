@@ -3,10 +3,40 @@
 namespace App\Http\Controllers;
 
 use App\Models\Barang;
+use App\Support\CartSessionHelper;
 use Illuminate\Http\Request;
 
 class KeranjangController extends Controller
 {
+    /**
+     * Cart JSON harus selalu object { "id": {...} } — bukan array [] — supaya klien
+     * tidak menginterpretasikan sebagai "bukan object" dan mengosongkan keranjang.
+     */
+    private function cartJsonPayload(array $cart): \stdClass
+    {
+        if ($cart === []) {
+            return new \stdClass;
+        }
+
+        $out = new \stdClass;
+        foreach ($cart as $key => $value) {
+            $out->{(string) $key} = $value;
+        }
+
+        return $out;
+    }
+
+    private function getCart(): array
+    {
+        return CartSessionHelper::normalizeKeys(session('cart', []));
+    }
+
+    private function saveCart(array $cart): void
+    {
+        session(['cart' => $cart]);
+        session()->save();
+    }
+
     /**
      * Sinkronisasi data cart di session dengan data terbaru dari database.
      * Memperbarui nama, harga, stok, dan foto setiap item.
@@ -17,14 +47,13 @@ class KeranjangController extends Controller
      */
     private function refreshCartSession(): array
     {
-        $cart = session('cart', []);
+        $cart = $this->getCart();
 
-        if (empty($cart)) {
+        if ($cart === []) {
             return $cart;
         }
 
         // Ambil semua barang sekaligus — hindari N+1 query
-        // keyBy dengan cast ke string agar konsisten dengan kunci cart (string)
         $barangList = Barang::with('fotoUtama')
             ->whereIn('id', array_keys($cart))
             ->get()
@@ -51,7 +80,7 @@ class KeranjangController extends Controller
             }
         }
 
-        session(['cart' => $cart]);
+        $this->saveCart($cart);
 
         return $cart;
     }
@@ -70,21 +99,6 @@ class KeranjangController extends Controller
     }
 
     /**
-     * Endpoint AJAX untuk menyegarkan data cart dari DB.
-     * Dipanggil oleh Alpine store setiap kali cart panel dibuka.
-     */
-    public function refresh()
-    {
-        $cart = $this->refreshCartSession();
-
-        return response()->json([
-            'success' => true,
-            'cart'    => $cart,
-            'count'   => collect($cart)->sum('qty'),
-        ]);
-    }
-
-    /**
      * Tambah item ke keranjang via AJAX.
      */
     public function tambah(Request $request, $barangId)
@@ -98,7 +112,7 @@ class KeranjangController extends Controller
             ], 422);
         }
 
-        $cart = session('cart', []);
+        $cart = $this->getCart();
         $id   = (string) $barang->id;
 
         if (isset($cart[$id])) {
@@ -120,12 +134,12 @@ class KeranjangController extends Controller
             ];
         }
 
-        session(['cart' => $cart]);
+        $this->saveCart($cart);
 
         return response()->json([
             'success' => true,
             'message' => "{$barang->nama} ditambahkan ke keranjang.",
-            'cart'    => $cart,
+            'cart'    => $this->cartJsonPayload($cart),
             'count'   => collect($cart)->sum('qty'),
         ]);
     }
@@ -144,10 +158,9 @@ class KeranjangController extends Controller
                 ->with('error', 'Barang tidak tersedia atau stok habis.');
         }
 
-        $cart = session('cart', []);
+        $cart = $this->getCart();
         $id   = (string) $barang->id;
 
-        // Tambahkan jika belum ada; jika sudah ada, biarkan qty-nya
         if (! isset($cart[$id])) {
             $cart[$id] = [
                 'barang_id' => $barang->id,
@@ -157,7 +170,7 @@ class KeranjangController extends Controller
                 'foto'      => $barang->fotoUtama?->path_foto,
                 'qty'       => 1,
             ];
-            session(['cart' => $cart]);
+            $this->saveCart($cart);
         }
 
         return redirect()->route('checkout.index');
@@ -168,13 +181,13 @@ class KeranjangController extends Controller
      */
     public function hapus(Request $request, $barangId)
     {
-        $cart = session('cart', []);
+        $cart = $this->getCart();
         unset($cart[(string) $barangId]);
-        session(['cart' => $cart]);
+        $this->saveCart($cart);
 
         return response()->json([
             'success' => true,
-            'cart'    => $cart,
+            'cart'    => $this->cartJsonPayload($cart),
             'count'   => collect($cart)->sum('qty'),
         ]);
     }
@@ -184,7 +197,7 @@ class KeranjangController extends Controller
      */
     public function update(Request $request, $barangId)
     {
-        $cart = session('cart', []);
+        $cart = $this->getCart();
         $id   = (string) $barangId;
         $qty  = max(1, (int) $request->qty);
 
@@ -200,11 +213,11 @@ class KeranjangController extends Controller
         }
 
         $cart[$id]['qty'] = $qty;
-        session(['cart' => $cart]);
+        $this->saveCart($cart);
 
         return response()->json([
             'success' => true,
-            'cart'    => $cart,
+            'cart'    => $this->cartJsonPayload($cart),
             'count'   => collect($cart)->sum('qty'),
         ]);
     }
@@ -215,10 +228,11 @@ class KeranjangController extends Controller
     public function kosongkan()
     {
         session()->forget('cart');
+        session()->save();
 
         return response()->json([
             'success' => true,
-            'cart'    => [],
+            'cart'    => new \stdClass,
             'count'   => 0,
         ]);
     }

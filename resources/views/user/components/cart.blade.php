@@ -10,23 +10,23 @@
         rel="stylesheet">
 @endonce
 
-{{-- ── 3. Alpine JS ─────────────────────────────────────────────────── --}}
-<script>
-    window.Alpine = window.Alpine || {};
-</script>
-@once
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-@endonce
+{{-- Alpine dimuat sekali lewat Vite `resources/js/app.js`. Jangan tambahkan CDN Alpine di sini
+     atau di partial lain di halaman yang sama — inisialisasi ganda akan menjalankan `alpine:init`
+     lagi dan mengosongkan store keranjang ke nilai Blade (kosong saat first paint). --}}
 
-{{-- ── 4. Alpine Stores (cart & toast) ─────────────────────────────── --}}
+{{-- ── 3. Alpine Stores (cart & toast) ─────────────────────────────── --}}
 @once
     <script>
         document.addEventListener('alpine:init', () => {
 
             Alpine.store('cart', {
-                items: @json(session('cart', [])),
+                // Pakai object JSON {} bukan [] agar kunci barang_id konsisten (bukan indeks array).
+                items: @json((object) session('cart', [])),
                 open: false,
                 version: 0,
+                _busy: false,
+                /** Antrean fetch cart agar tambah/hapus/update tidak jalan paralel. */
+                _apiChain: Promise.resolve(),
 
                 get count() {
                     return Object.values(this.items).reduce((s, i) => s + (i.qty || 0), 0);
@@ -49,121 +49,152 @@
                     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
                 },
 
-                /**
-                 * FIX UTAMA: syncItems selalu dipanggil untuk update cart dari server.
-                 * Pastikan newCart selalu object (bukan array), lalu spread ke this.items
-                 * agar Alpine mendeteksi perubahan dan re-render komponen.
-                 */
-                syncItems(newCart) {
-                    if (!newCart || Array.isArray(newCart)) {
-                        this.items = {};
-                    } else {
-                        this.items = {
-                            ...newCart
-                        };
+                /** Normalisasi respons server → plain object dengan kunci string barang id. */
+                normalizeServerCart(raw) {
+                    if (raw === undefined) return null;
+                    if (raw === null) return {};
+                    if (Array.isArray(raw)) {
+                        if (!raw.length) return {};
+                        const o = {};
+                        for (const row of raw) {
+                            if (row && row.barang_id != null) o[String(row.barang_id)] = row;
+                        }
+                        return o;
                     }
+                    if (typeof raw === 'object') {
+                        const o = {};
+                        for (const k of Object.keys(raw)) o[String(k)] = raw[k];
+                        return o;
+                    }
+                    return {};
+                },
+
+                syncItems(newCart) {
+                    const next = this.normalizeServerCart(newCart);
+                    if (next === null) return;
+                    this.items = next;
                     this.version++;
                 },
 
-                async refresh() {
-                    try {
-                        const res = await fetch('/keranjang/refresh', {
-                            headers: {
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': this.csrf()
-                            },
-                        });
-                        const d = await res.json();
-                        if (d.success) this.syncItems(d.cart);
-                    } catch (e) {
-                        console.warn('Cart refresh failed:', e);
-                    }
+                /** Jalankan satu operasi jaringan cart setelah operasi sebelumnya selesai. */
+                api(fn) {
+                    const p = this._apiChain.then(() => fn(), () => fn());
+                    this._apiChain = p.catch(() => {});
+                    return p;
+                },
+
+                openPanel() {
+                    this.open = true;
                 },
 
                 async tambahItem(barangId) {
-                    if (barangId === null || barangId === undefined || barangId === '') return;
+                    if (barangId === null || barangId === undefined || barangId === '') return false;
 
-                    try {
-                        const res = await fetch(`/keranjang/tambah/${barangId}`, {
-                            method: 'POST',
-                            headers: {
-                                'X-CSRF-TOKEN': this.csrf(),
-                                'Accept': 'application/json',
-                            },
-                        });
-                        const d = await res.json();
-                        if (res.ok && d.success) {
-                            // ✅ FIX: selalu pakai syncItems, JANGAN assign langsung
-                            this.syncItems(d.cart);
-                            Alpine.store('toast').flash(d.message, 'success');
-                        } else {
+                    return this.api(async () => {
+                        this._busy = true;
+                        try {
+                            const res = await fetch(`/keranjang/tambah/${barangId}`, {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'X-CSRF-TOKEN': this.csrf(),
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                            });
+                            const d = await res.json();
+                            if (res.ok && d.success) {
+                                this.syncItems(d.cart);
+                                Alpine.store('toast').flash(d.message, 'success');
+                                return true;
+                            }
                             Alpine.store('toast').flash(d.message ?? 'Gagal menambahkan.', 'error');
+                            return false;
+                        } catch (e) {
+                            console.error('tambahItem error:', e);
+                            Alpine.store('toast').flash('Terjadi kesalahan koneksi.', 'error');
+                            return false;
+                        } finally {
+                            this._busy = false;
                         }
-                    } catch (e) {
-                        console.error('tambahItem error:', e);
-                        Alpine.store('toast').flash('Terjadi kesalahan koneksi.', 'error');
-                    }
+                    });
                 },
 
                 async hapus(id) {
-                    try {
-                        const res = await fetch(`/keranjang/hapus/${id}`, {
-                            method: 'DELETE',
-                            headers: {
-                                'X-CSRF-TOKEN': this.csrf(),
-                                'Accept': 'application/json'
-                            },
-                        });
-                        const d = await res.json();
-                        if (d.success) {
-                            // ✅ FIX: selalu pakai syncItems
-                            this.syncItems(d.cart);
-                            Alpine.store('toast').flash('Item dihapus dari keranjang.', 'info');
+                    return this.api(async () => {
+                        this._busy = true;
+                        try {
+                            const res = await fetch(`/keranjang/hapus/${id}`, {
+                                method: 'DELETE',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'X-CSRF-TOKEN': this.csrf(),
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                            });
+                            const d = await res.json();
+                            if (d.success) {
+                                this.syncItems(d.cart);
+                                Alpine.store('toast').flash('Item dihapus dari keranjang.', 'info');
+                            }
+                        } catch {
+                            Alpine.store('toast').flash('Gagal menghapus item.', 'error');
+                        } finally {
+                            this._busy = false;
                         }
-                    } catch {
-                        Alpine.store('toast').flash('Gagal menghapus item.', 'error');
-                    }
+                    });
                 },
 
                 async update(id, qty) {
-                    try {
-                        const res = await fetch(`/keranjang/update/${id}`, {
-                            method: 'PATCH',
-                            headers: {
-                                'X-CSRF-TOKEN': this.csrf(),
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                qty
-                            }),
-                        });
-                        const d = await res.json();
-                        // ✅ FIX: selalu pakai syncItems
-                        if (d.success) this.syncItems(d.cart);
-                        else Alpine.store('toast').flash(d.message, 'error');
-                    } catch {
-                        Alpine.store('toast').flash('Gagal mengupdate qty.', 'error');
-                    }
+                    return this.api(async () => {
+                        this._busy = true;
+                        try {
+                            const res = await fetch(`/keranjang/update/${id}`, {
+                                method: 'PATCH',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'X-CSRF-TOKEN': this.csrf(),
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: JSON.stringify({
+                                    qty
+                                }),
+                            });
+                            const d = await res.json();
+                            if (d.success) this.syncItems(d.cart);
+                            else Alpine.store('toast').flash(d.message, 'error');
+                        } catch {
+                            Alpine.store('toast').flash('Gagal mengupdate qty.', 'error');
+                        } finally {
+                            this._busy = false;
+                        }
+                    });
                 },
 
                 async kosongkan() {
-                    try {
-                        const res = await fetch('/keranjang/kosongkan', {
-                            method: 'DELETE',
-                            headers: {
-                                'X-CSRF-TOKEN': this.csrf(),
-                                'Accept': 'application/json'
-                            },
-                        });
-                        const d = await res.json();
-                        if (d.success) {
-                            this.syncItems({});
-                            Alpine.store('toast').flash('Keranjang dikosongkan.', 'info');
+                    return this.api(async () => {
+                        try {
+                            const res = await fetch('/keranjang/kosongkan', {
+                                method: 'DELETE',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'X-CSRF-TOKEN': this.csrf(),
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                            });
+                            const d = await res.json();
+                            if (d.success) {
+                                this.syncItems(d.cart);
+                                Alpine.store('toast').flash('Keranjang dikosongkan.', 'info');
+                            }
+                        } catch {
+                            Alpine.store('toast').flash('Gagal mengosongkan keranjang.', 'error');
                         }
-                    } catch {
-                        Alpine.store('toast').flash('Gagal mengosongkan keranjang.', 'error');
-                    }
+                    });
                 },
             });
 
@@ -220,8 +251,8 @@
     </button>
 </div>
 
-{{-- CART SLIDE PANEL --}}
-<div x-data x-effect="if ($store.cart.open) $store.cart.refresh()">
+{{-- CART SLIDE PANEL — state dari syncItems() (tambah/hapus/update); tidak fetch /keranjang/refresh. --}}
+<div x-data>
 
     {{-- Overlay --}}
     <div x-show="$store.cart.open" x-transition:enter="transition ease-out duration-300"
@@ -349,7 +380,7 @@
                 </div>
                 <p class="text-[#F2E8C6]/25 text-[9px] uppercase tracking-wider">*Belum termasuk durasi & deposit</p>
 
-                <a href="{{ route('checkout.index') }}"
+                <a href="{{ route('checkout.index') }}" @click="$store.cart.open = false"
                     class="w-full block text-center bg-[#4d462e] text-[#F2E8C6] py-3.5 rounded text-[10px] uppercase tracking-[0.2em] font-bold hover:bg-[#655e44] transition-colors">
                     Lanjut ke Checkout
                 </a>

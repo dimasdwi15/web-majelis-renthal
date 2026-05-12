@@ -38,6 +38,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Session Blocking
+    |--------------------------------------------------------------------------
+    |
+    | Saat true, request HTTP yang memakai session yang sama akan menunggu
+    | sampai request sebelumnya selesai menulis session — mencegah item
+    | keranjang hilang saat beberapa AJAX (tambah barang) berjalan beruntun.
+    |
+    | Lock memakai store cache default; gunakan driver yang mendukung lock
+    | (file, database, redis), bukan "array".
+    |
+    */
+
+    'block' => (bool) env('SESSION_BLOCK', true),
+
+    'block_store' => env('SESSION_BLOCK_STORE'),
+
+    'block_lock_seconds' => (int) env('SESSION_BLOCK_LOCK_SECONDS', 30),
+
+    'block_wait_seconds' => (int) env('SESSION_BLOCK_WAIT_SECONDS', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Session Encryption
     |--------------------------------------------------------------------------
     |

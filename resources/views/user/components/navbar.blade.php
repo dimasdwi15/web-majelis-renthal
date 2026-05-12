@@ -69,7 +69,7 @@
             </form>
 
             {{-- Cart Button --}}
-            <button x-data @click="$store.cart.open = true"
+            <button x-data @click="$store.cart.openPanel()"
                 class="relative flex h-9 w-9 items-center justify-center text-[#F2E8C6]/70
                        hover:text-[#F2E8C6] hover:bg-[#655e44]/40 rounded-lg transition-all duration-200">
                 <span class="material-symbols-outlined text-xl">shopping_bag</span>

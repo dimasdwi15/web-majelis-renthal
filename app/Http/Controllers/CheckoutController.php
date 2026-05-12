@@ -8,6 +8,7 @@ use App\Models\Pembayaran;
 use App\Models\Transaksi;
 use App\Models\TransaksiDetail;
 use App\Services\OcrIdentitasService;
+use App\Support\CartSessionHelper;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,19 +32,19 @@ class CheckoutController extends Controller
 
     private function refreshCartSession(): array
     {
-        $cart = session('cart', []);
+        $cart = CartSessionHelper::normalizeKeys(session('cart', []));
 
-        if (empty($cart)) {
+        if ($cart === []) {
             return $cart;
         }
 
         $barangList = Barang::with('fotoUtama')
             ->whereIn('id', array_keys($cart))
             ->get()
-            ->keyBy('id');
+            ->keyBy(fn ($b) => (string) $b->id);
 
         foreach ($cart as $id => $item) {
-            $barang = $barangList->get($id);
+            $barang = $barangList->get((string) $id);
 
             if (!$barang || $barang->status !== 'aktif') {
                 unset($cart[$id]);
@@ -61,6 +62,7 @@ class CheckoutController extends Controller
         }
 
         session(['cart' => $cart]);
+        session()->save();
 
         return $cart;
     }
@@ -185,7 +187,7 @@ class CheckoutController extends Controller
         $itemsValid = [];
 
         foreach ($cart as $barangId => $item) {
-            $barang = Barang::find($barangId);
+            $barang = Barang::find((int) $barangId);
 
             if (!$barang || $barang->status !== 'aktif') {
                 return $this->errorResponse($isAjax, "Barang \"{$item['nama']}\" tidak tersedia.");
@@ -335,6 +337,7 @@ class CheckoutController extends Controller
             DB::commit();
 
             session()->forget('cart');
+            session()->save();
 
             // ── Response ──────────────────────────────────────────────────────
             if ($request->metode_pembayaran === 'midtrans') {

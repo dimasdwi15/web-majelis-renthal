@@ -64,9 +64,6 @@ Route::prefix('keranjang')->name('keranjang.')->group(function () {
 
     Route::delete('/kosongkan', [KeranjangController::class, 'kosongkan'])
         ->name('kosongkan');
-
-    Route::get('/refresh', [KeranjangController::class, 'refresh'])
-        ->name('refresh');
 });
 
 // Checkout (harus login)

@@ -103,7 +103,7 @@
 <body class="bg-[#f5f3ed] text-[#1b1c1a] antialiased">
     @include('user.components.navbar')
 
-    <div x-data="checkout" x-init="init()" class="max-w-screen-xl mx-auto px-4 md:px-8 py-12">
+    <div x-data="checkout" class="max-w-screen-xl mx-auto px-4 md:px-8 py-12">
 
         {{-- PAGE HEADER --}}
         <div class="mb-12">
@@ -1172,10 +1172,6 @@
             setuju: false,
             loading: false,
             submitError: null,
-
-            async init() {
-                await Alpine.store('cart').refresh();
-            },
 
             // Saat tanggal berubah, trigger refresh cuaca di widget anak
             onDateChange() {
