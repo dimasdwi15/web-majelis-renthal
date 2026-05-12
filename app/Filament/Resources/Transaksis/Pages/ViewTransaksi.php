@@ -5,9 +5,12 @@ namespace App\Filament\Resources\Transaksis\Pages;
 use App\Enums\MetodePembayaran;
 use App\Enums\StatusTransaksi;
 use App\Filament\Resources\Transaksis\TransaksiResource;
+use App\Models\BarangRusak;
 use App\Models\Transaksi;
 use App\Services\TransaksiService;
+use Carbon\Carbon;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Component;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -25,6 +28,8 @@ use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\IconPosition;
 use Filament\Support\Enums\TextSize;
+use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Http\UploadedFile;
 
 class ViewTransaksi extends ViewRecord
 {
@@ -48,6 +53,7 @@ class ViewTransaksi extends ViewRecord
                 'jaminanIdentitas:id,transaksi_id,jenis_identitas,path_file',
                 'denda.foto:id,denda_id,path_foto',
                 'pembayaran:id,transaksi_id,jenis,jumlah,status,dibayar_pada',
+                'barangRusak.barang.fotoUtama',
             ])
             ->findOrFail($key);
     }
@@ -55,6 +61,28 @@ class ViewTransaksi extends ViewRecord
     protected function refreshRecord(): void
     {
         $this->record = $this->resolveRecord($this->record->getKey());
+    }
+
+    /**
+     * @return array<int, Component>
+     */
+    private function getKerusakanPerBarisFormComponents(): array
+    {
+        $components = [];
+
+        foreach ($this->record->details as $detail) {
+            $nama = $detail->barang?->nama ?? 'Barang #'.$detail->barang_id;
+            $components[] = TextInput::make('kerusakan_detail_'.$detail->id)
+                ->label("Unit rusak — {$nama}")
+                ->helperText("Disewa pada transaksi ini: {$detail->jumlah} unit. Isi 0 jika kondisi baik.")
+                ->numeric()
+                ->default(0)
+                ->minValue(0)
+                ->maxValue($detail->jumlah)
+                ->required();
+        }
+
+        return $components;
     }
 
     /**
@@ -76,7 +104,7 @@ class ViewTransaksi extends ViewRecord
     {
         if (
             $this->record->status === StatusTransaksi::Berjalan
-            && now()->startOfDay()->isAfter(\Carbon\Carbon::parse($this->record->tanggal_kembali)->startOfDay())
+            && now()->startOfDay()->isAfter(Carbon::parse($this->record->tanggal_kembali)->startOfDay())
         ) {
             app(TransaksiService::class)->markTerlambat();
             $this->refreshRecord();
@@ -84,12 +112,12 @@ class ViewTransaksi extends ViewRecord
             Notification::make()
                 ->title('Status Diperbarui: Terlambat')
                 ->body(
-                    'Transaksi ' . $this->record->nomor_transaksi .
-                    ' telah melewati batas pengembalian (' .
-                    \Carbon\Carbon::parse($this->record->tanggal_kembali)->format('d M Y') .
-                    '). Status diubah menjadi "Terlambat". ' .
-                    'Denda keterlambatan 50% (Rp ' .
-                    number_format($this->record->total_sewa * 0.5, 0, ',', '.') .
+                    'Transaksi '.$this->record->nomor_transaksi.
+                    ' telah melewati batas pengembalian ('.
+                    Carbon::parse($this->record->tanggal_kembali)->format('d M Y').
+                    '). Status diubah menjadi "Terlambat". '.
+                    'Denda keterlambatan 50% (Rp '.
+                    number_format($this->record->total_sewa * 0.5, 0, ',', '.').
                     ') akan dihitung saat pengembalian.'
                 )
                 ->warning()
@@ -105,7 +133,7 @@ class ViewTransaksi extends ViewRecord
         if (
             $this->record->status === StatusTransaksi::MenungguPembayaran
             && $this->record->metode_pembayaran === MetodePembayaran::Tunai
-            && now()->isAfter(\Carbon\Carbon::parse($this->record->tanggal_ambil)->addDay())
+            && now()->isAfter(Carbon::parse($this->record->tanggal_ambil)->addDay())
         ) {
             app(TransaksiService::class)->cancelExpiredCod();
             $this->refreshRecord();
@@ -113,7 +141,7 @@ class ViewTransaksi extends ViewRecord
             Notification::make()
                 ->title('Transaksi Dibatalkan Otomatis')
                 ->body(
-                    'Transaksi ' . $this->record->nomor_transaksi .
+                    'Transaksi '.$this->record->nomor_transaksi.
                     ' dibatalkan karena user tidak membayar COD dalam batas waktu 24 jam (H+1).'
                 )
                 ->warning()
@@ -121,12 +149,12 @@ class ViewTransaksi extends ViewRecord
         }
     }
 
-    public function getTitle(): string|\Illuminate\Contracts\Support\Htmlable
+    public function getTitle(): string|Htmlable
     {
         return 'Detail Transaksi';
     }
 
-    public function getSubheading(): string|\Illuminate\Contracts\Support\Htmlable|null
+    public function getSubheading(): string|Htmlable|null
     {
         return $this->record->nomor_transaksi;
     }
@@ -157,7 +185,7 @@ class ViewTransaksi extends ViewRecord
                         ->send();
                 })
                 ->visible(
-                    fn() => $this->record->status === StatusTransaksi::MenungguPembayaran
+                    fn () => $this->record->status === StatusTransaksi::MenungguPembayaran
                         && $this->record->metode_pembayaran === MetodePembayaran::Tunai
                 ),
 
@@ -182,7 +210,7 @@ class ViewTransaksi extends ViewRecord
                         ->send();
                 })
                 ->visible(
-                    fn() => $this->record->status === StatusTransaksi::Dibayar
+                    fn () => $this->record->status === StatusTransaksi::Dibayar
                         && $this->record->metode_pembayaran === MetodePembayaran::Midtrans
                 ),
 
@@ -195,49 +223,55 @@ class ViewTransaksi extends ViewRecord
                 ->modalIcon('heroicon-o-arrow-uturn-left')
                 ->modalIconColor('warning')
                 ->modalDescription(
-                    fn() => $this->record->hari_telat > 0
-                        ? "⚠️ Terlambat {$this->record->hari_telat} hari.\n" .
-                          "Denda keterlambatan otomatis: Rp " .
-                          number_format($this->record->hitung_denda_telat, 0, ',', '.') .
-                          " (50% dari total sewa Rp " .
-                          number_format($this->record->total_sewa, 0, ',', '.') . ").\n" .
-                          "Tambahkan denda kerusakan di bawah jika ada."
+                    fn () => $this->record->hari_telat > 0
+                        ? "⚠️ Terlambat {$this->record->hari_telat} hari.\n".
+                          'Denda keterlambatan otomatis: Rp '.
+                          number_format($this->record->hitung_denda_telat, 0, ',', '.').
+                          ' (50% dari total sewa Rp '.
+                          number_format($this->record->total_sewa, 0, ',', '.').").\n".
+                          'Tambahkan denda kerusakan di bawah jika ada.'
                         : '✅ Pengembalian tepat waktu — tidak ada denda keterlambatan.'
                 )
                 ->modalSubmitActionLabel('Proses Sekarang')
-                ->form([
-                    TextInput::make('dendaKerusakan')
-                        ->label('Denda Kerusakan (Rp)')
-                        ->numeric()
-                        ->default(0)
-                        ->minValue(0)
-                        ->prefix('Rp')
-                        ->placeholder('0')
-                        ->helperText('Kosongkan atau isi 0 jika tidak ada kerusakan'),
+                ->form(fn (): array => array_merge(
+                    [
+                        TextInput::make('dendaKerusakan')
+                            ->label('Denda Kerusakan (Rp)')
+                            ->numeric()
+                            ->default(0)
+                            ->minValue(0)
+                            ->prefix('Rp')
+                            ->placeholder('0')
+                            ->helperText(
+                                'Jika ada kerusakan: isi nominal denda dan tentukan jumlah unit rusak per barang di bawah. '.
+                                'Unit rusak tidak masuk stok sewa sampai diperbaiki lewat menu Barang Rusak.'
+                            ),
 
-                    Textarea::make('catatan')
-                        ->label('Catatan Kerusakan')
-                        ->placeholder('Deskripsikan kondisi kerusakan barang...')
-                        ->rows(3),
+                        Textarea::make('catatan')
+                            ->label('Catatan Kerusakan')
+                            ->placeholder('Deskripsikan kondisi kerusakan barang...')
+                            ->rows(3),
 
-                    FileUpload::make('foto')
-                        ->label('Foto Bukti Kerusakan')
-                        ->multiple()
-                        ->image()
-                        ->maxSize(2048)
-                        ->directory('denda')
-                        ->disk('public')
-                        ->imagePreviewHeight('100')
-                        ->panelLayout('grid')
-                        ->reorderable(),
-                ])
+                        FileUpload::make('foto')
+                            ->label('Foto Bukti Kerusakan')
+                            ->multiple()
+                            ->image()
+                            ->maxSize(2048)
+                            ->directory('denda')
+                            ->disk('public')
+                            ->imagePreviewHeight('100')
+                            ->panelLayout('grid')
+                            ->reorderable(),
+                    ],
+                    $this->getKerusakanPerBarisFormComponents(),
+                ))
                 ->action(function (array $data) {
                     $fotoFiles = [];
-                    if (!empty($data['foto'])) {
+                    if (! empty($data['foto'])) {
                         foreach ($data['foto'] as $path) {
-                            $fullPath = storage_path('app/public/' . $path);
+                            $fullPath = storage_path('app/public/'.$path);
                             if (file_exists($fullPath)) {
-                                $fotoFiles[] = new \Illuminate\Http\UploadedFile(
+                                $fotoFiles[] = new UploadedFile(
                                     $fullPath,
                                     basename($path),
                                     mime_content_type($fullPath),
@@ -248,11 +282,17 @@ class ViewTransaksi extends ViewRecord
                         }
                     }
 
+                    $jumlahRusakPerDetailId = [];
+                    foreach ($this->record->details as $detail) {
+                        $jumlahRusakPerDetailId[$detail->id] = (int) ($data['kerusakan_detail_'.$detail->id] ?? 0);
+                    }
+
                     app(TransaksiService::class)->prosesKembali(
                         transaksi: $this->record,
                         dendaKerusakan: (float) ($data['dendaKerusakan'] ?? 0),
                         catatan: $data['catatan'] ?? '',
-                        fotoFiles: $fotoFiles
+                        fotoFiles: $fotoFiles,
+                        jumlahRusakPerDetailId: $jumlahRusakPerDetailId,
                     );
 
                     $this->refreshRecord();
@@ -261,13 +301,13 @@ class ViewTransaksi extends ViewRecord
                     Notification::make()
                         ->title('Pengembalian Berhasil')
                         ->body($totalDenda > 0
-                            ? 'Barang dikembalikan. Total denda: Rp ' . number_format($totalDenda, 0, ',', '.') .
+                            ? 'Barang dikembalikan. Total denda: Rp '.number_format($totalDenda, 0, ',', '.').
                               '. Pilih metode pembayaran denda di bawah.'
                             : 'Barang dikembalikan tanpa denda. Transaksi selesai.')
                         ->success()
                         ->send();
                 })
-                ->visible(fn() => in_array($this->record->status, [
+                ->visible(fn () => in_array($this->record->status, [
                     StatusTransaksi::Berjalan,
                     StatusTransaksi::Terlambat,
                 ])),
@@ -288,7 +328,7 @@ class ViewTransaksi extends ViewRecord
                 ->modalIcon('heroicon-o-banknotes')
                 ->modalIconColor('success')
                 ->modalDescription(
-                    fn() => 'Total denda: Rp ' . number_format($this->record->total_denda, 0, ',', '.') .
+                    fn () => 'Total denda: Rp '.number_format($this->record->total_denda, 0, ',', '.').
                             '. Konfirmasi bahwa user sudah membayar tunai di toko. Transaksi akan diselesaikan.'
                 )
                 ->modalSubmitActionLabel('Ya, Konfirmasi Bayar Denda')
@@ -304,7 +344,7 @@ class ViewTransaksi extends ViewRecord
                 ->visible(
                     // Tampil untuk SEMUA metode pembayaran selama status Dikembalikan
                     // dan masih ada denda yang belum lunas
-                    fn() => $this->record->status === StatusTransaksi::Dikembalikan
+                    fn () => $this->record->status === StatusTransaksi::Dikembalikan
                         && (float) $this->record->total_denda > 0
                 ),
 
@@ -319,7 +359,7 @@ class ViewTransaksi extends ViewRecord
                 ->modalIcon('heroicon-o-paper-airplane')
                 ->modalIconColor('primary')
                 ->modalDescription(
-                    fn() => 'Tagihan Rp ' . number_format($this->record->total_denda, 0, ',', '.') .
+                    fn () => 'Tagihan Rp '.number_format($this->record->total_denda, 0, ',', '.').
                             ' akan dikirim ke user via notifikasi dan link pembayaran Midtrans.'
                 )
                 ->modalSubmitActionLabel('Ya, Kirim Tagihan')
@@ -335,7 +375,7 @@ class ViewTransaksi extends ViewRecord
                 ->visible(
                     // Tampil untuk SEMUA metode pembayaran selama status Dikembalikan
                     // dan masih ada denda yang belum lunas
-                    fn() => $this->record->status === StatusTransaksi::Dikembalikan
+                    fn () => $this->record->status === StatusTransaksi::Dikembalikan
                         && (float) $this->record->total_denda > 0
                 ),
         ];
@@ -362,23 +402,23 @@ class ViewTransaksi extends ViewRecord
                                 TextEntry::make('status')
                                     ->label('Status Transaksi')
                                     ->badge()
-                                    ->formatStateUsing(fn($state) => $state instanceof StatusTransaksi ? $state->label() : $state)
-                                    ->color(fn($state) => $state instanceof StatusTransaksi ? $state->color() : 'gray')
+                                    ->formatStateUsing(fn ($state) => $state instanceof StatusTransaksi ? $state->label() : $state)
+                                    ->color(fn ($state) => $state instanceof StatusTransaksi ? $state->color() : 'gray')
                                     ->size(TextSize::Large)
                                     ->weight(FontWeight::Bold),
 
                                 TextEntry::make('metode_pembayaran')
                                     ->label('Metode Pembayaran (Sewa Awal)')
                                     ->badge()
-                                    ->formatStateUsing(fn($state) => $state instanceof MetodePembayaran ? $state->label() : $state)
-                                    ->color(fn($state) => $state instanceof MetodePembayaran ? $state->color() : 'gray'),
+                                    ->formatStateUsing(fn ($state) => $state instanceof MetodePembayaran ? $state->label() : $state)
+                                    ->color(fn ($state) => $state instanceof MetodePembayaran ? $state->color() : 'gray'),
                             ]),
 
                             // Kolom 2: Grand Total
                             Group::make()->schema([
                                 TextEntry::make('grand_total_banner')
                                     ->label('Grand Total')
-                                    ->getStateUsing(fn(Transaksi $record) => $record->total_keseluruhan)
+                                    ->getStateUsing(fn (Transaksi $record) => $record->total_keseluruhan)
                                     ->money('IDR')
                                     ->size(TextSize::Large)
                                     ->weight(FontWeight::ExtraBold)
@@ -387,17 +427,17 @@ class ViewTransaksi extends ViewRecord
                                 TextEntry::make('status_pembayaran')
                                     ->label('Status Pembayaran')
                                     ->badge()
-                                    ->formatStateUsing(fn($state) => match ($state) {
-                                        'lunas'    => '✓ Lunas',
+                                    ->formatStateUsing(fn ($state) => match ($state) {
+                                        'lunas' => '✓ Lunas',
                                         'menunggu' => '⏳ Menunggu',
-                                        'gagal'    => '✗ Gagal',
-                                        default    => $state,
+                                        'gagal' => '✗ Gagal',
+                                        default => $state,
                                     })
-                                    ->color(fn($state) => match ($state) {
-                                        'lunas'    => 'success',
+                                    ->color(fn ($state) => match ($state) {
+                                        'lunas' => 'success',
                                         'menunggu' => 'warning',
-                                        'gagal'    => 'danger',
-                                        default    => 'gray',
+                                        'gagal' => 'danger',
+                                        default => 'gray',
                                     }),
                             ]),
 
@@ -406,10 +446,9 @@ class ViewTransaksi extends ViewRecord
                                 TextEntry::make('periode_sewa')
                                     ->label('Periode Sewa')
                                     ->getStateUsing(
-                                        fn(Transaksi $record) =>
-                                        \Carbon\Carbon::parse($record->tanggal_ambil)->format('d M Y')
-                                            . ' — '
-                                            . \Carbon\Carbon::parse($record->tanggal_kembali)->format('d M Y')
+                                        fn (Transaksi $record) => Carbon::parse($record->tanggal_ambil)->format('d M Y')
+                                            .' — '
+                                            .Carbon::parse($record->tanggal_kembali)->format('d M Y')
                                     )
                                     ->icon('heroicon-m-calendar-days')
                                     ->iconPosition(IconPosition::Before)
@@ -433,8 +472,7 @@ class ViewTransaksi extends ViewRecord
                             ->weight(FontWeight::Bold)
                             ->view('filament.components.cod-countdown')
                             ->visible(
-                                fn(Transaksi $record) =>
-                                $record->metode_pembayaran === MetodePembayaran::Tunai
+                                fn (Transaksi $record) => $record->metode_pembayaran === MetodePembayaran::Tunai
                                     && $record->status === StatusTransaksi::MenungguPembayaran
                             ),
 
@@ -443,14 +481,12 @@ class ViewTransaksi extends ViewRecord
                         // memberitahu admin ada 2 opsi pembayaran denda.
                         TextEntry::make('info_pilihan_denda')
                             ->label('')
-                            ->getStateUsing(fn(Transaksi $record) =>
-                                '💡 Tersedia 2 opsi pembayaran denda: ' .
-                                '(1) Bayar Denda Tunai — konfirmasi langsung jika user membayar di toko, ' .
+                            ->getStateUsing(fn (Transaksi $record) => '💡 Tersedia 2 opsi pembayaran denda: '.
+                                '(1) Bayar Denda Tunai — konfirmasi langsung jika user membayar di toko, '.
                                 '(2) Kirim Tagihan Midtrans — kirim link pembayaran ke user via notifikasi.'
                             )
                             ->visible(
-                                fn(Transaksi $record) =>
-                                $record->status === StatusTransaksi::Dikembalikan
+                                fn (Transaksi $record) => $record->status === StatusTransaksi::Dikembalikan
                                     && (float) $record->total_denda > 0
                             )
                             ->color('info')
@@ -502,7 +538,7 @@ class ViewTransaksi extends ViewRecord
                                             ->description('Dokumen identitas yang diserahkan sebagai jaminan')
                                             ->icon('heroicon-o-identification')
                                             ->collapsed()
-                                            ->visible(fn(Transaksi $record) => $record->jaminanIdentitas !== null)
+                                            ->visible(fn (Transaksi $record) => $record->jaminanIdentitas !== null)
                                             ->schema([
                                                 Grid::make(2)->schema([
                                                     TextEntry::make('jaminanIdentitas.jenis_identitas')
@@ -514,8 +550,8 @@ class ViewTransaksi extends ViewRecord
                                                     ImageEntry::make('jaminanIdentitas.path_file')
                                                         ->label('Foto Identitas')
                                                         ->getStateUsing(
-                                                            fn($record) => $record->jaminanIdentitas
-                                                                ? asset('storage/' . $record->jaminanIdentitas->path_file)
+                                                            fn ($record) => $record->jaminanIdentitas
+                                                                ? asset('storage/'.$record->jaminanIdentitas->path_file)
                                                                 : null
                                                         )
                                                         ->height(150)
@@ -527,7 +563,7 @@ class ViewTransaksi extends ViewRecord
                                 // ── Tab 2: Item Disewa ──
                                 Tab::make('Item Disewa')
                                     ->icon('heroicon-o-shopping-bag')
-                                    ->badge(fn(Transaksi $record) => $record->details->count())
+                                    ->badge(fn (Transaksi $record) => $record->details->count())
                                     ->badgeColor('primary')
                                     ->schema([
                                         Section::make('Daftar Barang yang Disewa')
@@ -542,9 +578,8 @@ class ViewTransaksi extends ViewRecord
                                                             ImageEntry::make('barang.fotoUtama.path_foto')
                                                                 ->label('Foto Barang')
                                                                 ->getStateUsing(
-                                                                    fn($record) =>
-                                                                    $record->barang?->fotoUtama
-                                                                        ? asset('storage/' . $record->barang->fotoUtama->path_foto)
+                                                                    fn ($record) => $record->barang?->fotoUtama
+                                                                        ? asset('storage/'.$record->barang->fotoUtama->path_foto)
                                                                         : 'https://via.placeholder.com/80'
                                                                 )
                                                                 ->height(80)
@@ -580,10 +615,73 @@ class ViewTransaksi extends ViewRecord
                                             ]),
                                     ]),
 
+                                // ── Tab: Barang rusak (inventori perbaikan) ──
+                                Tab::make('Barang Rusak')
+                                    ->icon('heroicon-o-wrench-screwdriver')
+                                    ->badge(
+                                        fn (Transaksi $record) => $record->barangRusak->isNotEmpty()
+                                            ? (string) $record->barangRusak->count()
+                                            : null
+                                    )
+                                    ->badgeColor('warning')
+                                    ->schema([
+                                        Section::make('Unit yang tidak masuk stok sewa')
+                                            ->description(
+                                                'Dicatat saat pengembalian dengan denda kerusakan. '.
+                                                'Setelah diperbaiki, admin menambah stok lewat menu Barang Rusak.'
+                                            )
+                                            ->icon('heroicon-o-archive-box-x-mark')
+                                            ->visible(fn (Transaksi $record) => $record->barangRusak->isNotEmpty())
+                                            ->schema([
+                                                RepeatableEntry::make('barangRusak')
+                                                    ->label('')
+                                                    ->schema([
+                                                        Grid::make(4)->schema([
+                                                            TextEntry::make('barang.nama')
+                                                                ->label('Barang')
+                                                                ->weight(FontWeight::Bold),
+
+                                                            TextEntry::make('jumlah')
+                                                                ->label('Qty rusak')
+                                                                ->suffix(' unit')
+                                                                ->badge()
+                                                                ->color('warning'),
+
+                                                            TextEntry::make('status')
+                                                                ->label('Status')
+                                                                ->badge()
+                                                                ->formatStateUsing(
+                                                                    fn (string $state) => $state === BarangRusak::STATUS_MENUNGGU
+                                                                        ? 'Menunggu perbaikan'
+                                                                        : 'Sudah diperbaiki'
+                                                                )
+                                                                ->color(
+                                                                    fn (string $state) => $state === BarangRusak::STATUS_MENUNGGU
+                                                                        ? 'warning'
+                                                                        : 'success'
+                                                                ),
+
+                                                            TextEntry::make('catatan_kerusakan')
+                                                                ->label('Catatan')
+                                                                ->placeholder('—')
+                                                                ->limit(40),
+                                                        ]),
+                                                    ])
+                                                    ->contained(false),
+                                            ]),
+
+                                        TextEntry::make('barang_rusak_kosong')
+                                            ->label('')
+                                            ->getStateUsing(
+                                                fn () => 'Belum ada unit yang masuk inventori rusak untuk transaksi ini.'
+                                            )
+                                            ->visible(fn (Transaksi $record) => $record->barangRusak->isEmpty()),
+                                    ]),
+
                                 // ── Tab 3: Denda & Kerusakan ──
                                 Tab::make('Denda & Kerusakan')
                                     ->icon('heroicon-o-exclamation-triangle')
-                                    ->badge(fn(Transaksi $record) => $record->denda->isNotEmpty() ? $record->denda->count() : null)
+                                    ->badge(fn (Transaksi $record) => $record->denda->isNotEmpty() ? $record->denda->count() : null)
                                     ->badgeColor('danger')
                                     ->schema([
                                         Section::make('Ringkasan Denda')
@@ -595,14 +693,14 @@ class ViewTransaksi extends ViewRecord
                                                     // Denda keterlambatan — otomatis 50% total sewa
                                                     TextEntry::make('denda_telat_display')
                                                         ->label('Denda Keterlambatan')
-                                                        ->getStateUsing(fn(Transaksi $record) => $record->hitung_denda_telat)
+                                                        ->getStateUsing(fn (Transaksi $record) => $record->hitung_denda_telat)
                                                         ->money('IDR')
                                                         ->weight(FontWeight::Bold)
                                                         ->size(TextSize::Large)
-                                                        ->color(fn($state) => $state > 0 ? 'danger' : 'gray')
-                                                        ->helperText(fn(Transaksi $record) => $record->hari_telat > 0
-                                                            ? "📅 {$record->hari_telat} hari terlambat · denda otomatis 50% dari total sewa (Rp " .
-                                                              number_format($record->total_sewa, 0, ',', '.') . ")"
+                                                        ->color(fn ($state) => $state > 0 ? 'danger' : 'gray')
+                                                        ->helperText(fn (Transaksi $record) => $record->hari_telat > 0
+                                                            ? "📅 {$record->hari_telat} hari terlambat · denda otomatis 50% dari total sewa (Rp ".
+                                                              number_format($record->total_sewa, 0, ',', '.').')'
                                                             : '✅ Tidak ada keterlambatan'),
 
                                                     // Denda kerusakan — manual dari admin
@@ -610,27 +708,27 @@ class ViewTransaksi extends ViewRecord
                                                         ->label('Denda Kerusakan')
                                                         ->getStateUsing(function (Transaksi $record) {
                                                             $dendaKerusakan = $record->total_denda - $record->hitung_denda_telat;
+
                                                             return max(0, $dendaKerusakan);
                                                         })
                                                         ->money('IDR')
                                                         ->weight(FontWeight::Bold)
                                                         ->size(TextSize::Large)
-                                                        ->color(fn($state) => (float) $state > 0 ? 'danger' : 'gray')
+                                                        ->color(fn ($state) => (float) $state > 0 ? 'danger' : 'gray')
                                                         ->helperText('Diinput manual oleh admin saat pengembalian'),
                                                 ]),
 
                                                 // Peringatan jika sedang terlambat
                                                 TextEntry::make('peringatan_terlambat')
                                                     ->label('')
-                                                    ->getStateUsing(fn(Transaksi $record) =>
-                                                        $record->status === StatusTransaksi::Terlambat
-                                                            ? "⚠️ Transaksi ini sedang TERLAMBAT " . $record->hari_telat . " hari. " .
-                                                              "Denda keterlambatan Rp " .
-                                                              number_format($record->hitung_denda_telat, 0, ',', '.') .
-                                                              " akan ditagihkan saat admin memproses pengembalian."
+                                                    ->getStateUsing(fn (Transaksi $record) => $record->status === StatusTransaksi::Terlambat
+                                                            ? '⚠️ Transaksi ini sedang TERLAMBAT '.$record->hari_telat.' hari. '.
+                                                              'Denda keterlambatan Rp '.
+                                                              number_format($record->hitung_denda_telat, 0, ',', '.').
+                                                              ' akan ditagihkan saat admin memproses pengembalian.'
                                                             : null
                                                     )
-                                                    ->visible(fn(Transaksi $record) => $record->status === StatusTransaksi::Terlambat)
+                                                    ->visible(fn (Transaksi $record) => $record->status === StatusTransaksi::Terlambat)
                                                     ->color('danger')
                                                     ->weight(FontWeight::SemiBold),
 
@@ -638,15 +736,13 @@ class ViewTransaksi extends ViewRecord
                                                 // Muncul di tab denda saat ada tagihan denda aktif
                                                 TextEntry::make('info_opsi_pembayaran_denda')
                                                     ->label('Opsi Pembayaran Denda')
-                                                    ->getStateUsing(fn(Transaksi $record) =>
-                                                        '⬆️ Gunakan tombol di header halaman: ' .
-                                                        '"Bayar Denda Tunai (COD)" jika user bayar langsung di toko, ' .
-                                                        'atau "Kirim Tagihan Denda (Midtrans)" untuk kirim link pembayaran ke user. ' .
+                                                    ->getStateUsing(fn (Transaksi $record) => '⬆️ Gunakan tombol di header halaman: '.
+                                                        '"Bayar Denda Tunai (COD)" jika user bayar langsung di toko, '.
+                                                        'atau "Kirim Tagihan Denda (Midtrans)" untuk kirim link pembayaran ke user. '.
                                                         'Kedua opsi tersedia untuk semua metode pembayaran.'
                                                     )
                                                     ->visible(
-                                                        fn(Transaksi $record) =>
-                                                        $record->status === StatusTransaksi::Dikembalikan
+                                                        fn (Transaksi $record) => $record->status === StatusTransaksi::Dikembalikan
                                                             && (float) $record->total_denda > 0
                                                     )
                                                     ->color('info')
@@ -656,7 +752,7 @@ class ViewTransaksi extends ViewRecord
                                         Section::make('Riwayat Denda')
                                             ->description('Detail setiap denda yang tercatat')
                                             ->icon('heroicon-o-clipboard-document-list')
-                                            ->visible(fn(Transaksi $record) => $record->denda->isNotEmpty())
+                                            ->visible(fn (Transaksi $record) => $record->denda->isNotEmpty())
                                             ->schema([
                                                 RepeatableEntry::make('denda')
                                                     ->label('')
@@ -665,12 +761,12 @@ class ViewTransaksi extends ViewRecord
                                                             TextEntry::make('jenis')
                                                                 ->label('Jenis Denda')
                                                                 ->badge()
-                                                                ->formatStateUsing(fn($state) => match ($state) {
-                                                                    'terlambat'  => '⏰ Keterlambatan (Otomatis)',
-                                                                    'kerusakan'  => '🔧 Kerusakan (Manual)',
-                                                                    default      => ucfirst($state),
+                                                                ->formatStateUsing(fn ($state) => match ($state) {
+                                                                    'terlambat' => '⏰ Keterlambatan (Otomatis)',
+                                                                    'kerusakan' => '🔧 Kerusakan (Manual)',
+                                                                    default => ucfirst($state),
                                                                 })
-                                                                ->color(fn($state) => $state === 'terlambat' ? 'warning' : 'danger'),
+                                                                ->color(fn ($state) => $state === 'terlambat' ? 'warning' : 'danger'),
 
                                                             TextEntry::make('jumlah')
                                                                 ->label('Jumlah')
@@ -680,8 +776,8 @@ class ViewTransaksi extends ViewRecord
 
                                                             TextEntry::make('dibayar_pada')
                                                                 ->label('Status Bayar')
-                                                                ->formatStateUsing(fn($state) => $state ? '✓ Lunas' : '⏳ Belum Bayar')
-                                                                ->color(fn($state) => $state ? 'success' : 'warning')
+                                                                ->formatStateUsing(fn ($state) => $state ? '✓ Lunas' : '⏳ Belum Bayar')
+                                                                ->color(fn ($state) => $state ? 'success' : 'warning')
                                                                 ->badge(),
                                                         ]),
 
@@ -689,18 +785,18 @@ class ViewTransaksi extends ViewRecord
                                                             ->label('Catatan')
                                                             ->icon('heroicon-m-chat-bubble-left')
                                                             ->iconPosition(IconPosition::Before)
-                                                            ->visible(fn($state) => filled($state))
+                                                            ->visible(fn ($state) => filled($state))
                                                             ->color('gray'),
 
                                                         RepeatableEntry::make('foto')
                                                             ->label('📷 Foto Bukti')
-                                                            ->visible(fn($record) => $record->foto->isNotEmpty())
+                                                            ->visible(fn ($record) => $record->foto->isNotEmpty())
                                                             ->schema([
                                                                 ImageEntry::make('path_foto')
                                                                     ->label('')
                                                                     ->getStateUsing(
-                                                                        fn($record) => $record->path_foto
-                                                                            ? asset('storage/' . $record->path_foto)
+                                                                        fn ($record) => $record->path_foto
+                                                                            ? asset('storage/'.$record->path_foto)
                                                                             : null
                                                                     )
                                                                     ->height(90)
@@ -715,7 +811,7 @@ class ViewTransaksi extends ViewRecord
                                 // ── Tab 4: Riwayat Pembayaran ──
                                 Tab::make('Pembayaran')
                                     ->icon('heroicon-o-credit-card')
-                                    ->badge(fn(Transaksi $record) => $record->pembayaran->isNotEmpty() ? $record->pembayaran->count() : null)
+                                    ->badge(fn (Transaksi $record) => $record->pembayaran->isNotEmpty() ? $record->pembayaran->count() : null)
                                     ->badgeColor('info')
                                     ->schema([
                                         Section::make('Riwayat Transaksi Pembayaran')
@@ -729,8 +825,8 @@ class ViewTransaksi extends ViewRecord
                                                             TextEntry::make('jenis')
                                                                 ->label('Jenis')
                                                                 ->badge()
-                                                                ->formatStateUsing(fn($state) => ucfirst($state))
-                                                                ->color(fn($state) => $state === 'utama' ? 'info' : 'warning'),
+                                                                ->formatStateUsing(fn ($state) => ucfirst($state))
+                                                                ->color(fn ($state) => $state === 'utama' ? 'info' : 'warning'),
 
                                                             TextEntry::make('jumlah')
                                                                 ->label('Jumlah')
@@ -740,10 +836,10 @@ class ViewTransaksi extends ViewRecord
                                                             TextEntry::make('status')
                                                                 ->label('Status')
                                                                 ->badge()
-                                                                ->color(fn($state) => match ($state) {
-                                                                    'lunas'    => 'success',
+                                                                ->color(fn ($state) => match ($state) {
+                                                                    'lunas' => 'success',
                                                                     'menunggu' => 'warning',
-                                                                    default    => 'danger',
+                                                                    default => 'danger',
                                                                 }),
 
                                                             TextEntry::make('dibayar_pada')
@@ -775,25 +871,25 @@ class ViewTransaksi extends ViewRecord
                                 TextEntry::make('status')
                                     ->label('Status Transaksi')
                                     ->badge()
-                                    ->formatStateUsing(fn($state) => $state instanceof StatusTransaksi ? $state->label() : $state)
-                                    ->color(fn($state) => $state instanceof StatusTransaksi ? $state->color() : 'gray')
+                                    ->formatStateUsing(fn ($state) => $state instanceof StatusTransaksi ? $state->label() : $state)
+                                    ->color(fn ($state) => $state instanceof StatusTransaksi ? $state->color() : 'gray')
                                     ->size(TextSize::Large)
                                     ->weight(FontWeight::Bold),
 
                                 TextEntry::make('status_pembayaran')
                                     ->label('Pembayaran Sewa')
                                     ->badge()
-                                    ->formatStateUsing(fn($state) => match ($state) {
-                                        'lunas'    => '✓ Lunas',
+                                    ->formatStateUsing(fn ($state) => match ($state) {
+                                        'lunas' => '✓ Lunas',
                                         'menunggu' => '⏳ Menunggu',
-                                        'gagal'    => '✗ Gagal',
-                                        default    => $state,
+                                        'gagal' => '✗ Gagal',
+                                        default => $state,
                                     })
-                                    ->color(fn($state) => match ($state) {
-                                        'lunas'    => 'success',
+                                    ->color(fn ($state) => match ($state) {
+                                        'lunas' => 'success',
                                         'menunggu' => 'warning',
-                                        'gagal'    => 'danger',
-                                        default    => 'gray',
+                                        'gagal' => 'danger',
+                                        default => 'gray',
                                     }),
 
                                 TextEntry::make('tanggal_dikembalikan')
@@ -801,7 +897,7 @@ class ViewTransaksi extends ViewRecord
                                     ->dateTime('d M Y · H:i')
                                     ->icon('heroicon-m-arrow-uturn-left')
                                     ->iconPosition(IconPosition::Before)
-                                    ->visible(fn($state) => filled($state)),
+                                    ->visible(fn ($state) => filled($state)),
                             ]),
 
                         // Ringkasan Biaya
@@ -817,21 +913,22 @@ class ViewTransaksi extends ViewRecord
                                 // Denda telat: otomatis 50% total_sewa
                                 TextEntry::make('sidebar_denda_telat')
                                     ->label('Denda Keterlambatan (50%)')
-                                    ->getStateUsing(fn(Transaksi $record) => $record->hitung_denda_telat)
+                                    ->getStateUsing(fn (Transaksi $record) => $record->hitung_denda_telat)
                                     ->money('IDR')
                                     ->color('danger')
                                     ->weight(FontWeight::SemiBold)
-                                    ->helperText(fn(Transaksi $record) => $record->hari_telat > 0
-                                        ? $record->hari_telat . ' hari terlambat'
+                                    ->helperText(fn (Transaksi $record) => $record->hari_telat > 0
+                                        ? $record->hari_telat.' hari terlambat'
                                         : null
                                     )
-                                    ->visible(fn(Transaksi $record) => $record->hitung_denda_telat > 0),
+                                    ->visible(fn (Transaksi $record) => $record->hitung_denda_telat > 0),
 
                                 // Denda kerusakan: manual
                                 TextEntry::make('sidebar_denda_kerusakan')
                                     ->label('Denda Kerusakan')
                                     ->getStateUsing(function (Transaksi $record) {
                                         $dendaKerusakan = $record->total_denda - $record->hitung_denda_telat;
+
                                         return max(0, (float) $dendaKerusakan);
                                     })
                                     ->money('IDR')
@@ -839,12 +936,13 @@ class ViewTransaksi extends ViewRecord
                                     ->weight(FontWeight::SemiBold)
                                     ->visible(function (Transaksi $record) {
                                         $dendaKerusakan = $record->total_denda - $record->hitung_denda_telat;
+
                                         return max(0, (float) $dendaKerusakan) > 0;
                                     }),
 
                                 TextEntry::make('grand_total')
                                     ->label('Grand Total')
-                                    ->getStateUsing(fn(Transaksi $record) => $record->total_keseluruhan)
+                                    ->getStateUsing(fn (Transaksi $record) => $record->total_keseluruhan)
                                     ->money('IDR')
                                     ->weight(FontWeight::ExtraBold)
                                     ->size(TextSize::Large)
@@ -857,20 +955,19 @@ class ViewTransaksi extends ViewRecord
                             ->icon('heroicon-o-exclamation-circle')
                             ->description('Tersedia 2 opsi pembayaran')
                             ->visible(
-                                fn(Transaksi $record) =>
-                                $record->status === StatusTransaksi::Dikembalikan
+                                fn (Transaksi $record) => $record->status === StatusTransaksi::Dikembalikan
                                     && (float) $record->total_denda > 0
                             )
                             ->schema([
                                 TextEntry::make('panduan_denda_cod')
                                     ->label('💵 Tunai (COD)')
-                                    ->getStateUsing(fn() => 'Klik "Bayar Denda Tunai (COD)" jika user membayar langsung di toko. Transaksi langsung selesai.')
+                                    ->getStateUsing(fn () => 'Klik "Bayar Denda Tunai (COD)" jika user membayar langsung di toko. Transaksi langsung selesai.')
                                     ->color('success')
                                     ->size(TextSize::Small),
 
                                 TextEntry::make('panduan_denda_midtrans')
                                     ->label('💳 Cashless (Midtrans)')
-                                    ->getStateUsing(fn() => 'Klik "Kirim Tagihan Denda (Midtrans)" untuk mengirim link pembayaran ke user. Transaksi selesai setelah user membayar.')
+                                    ->getStateUsing(fn () => 'Klik "Kirim Tagihan Denda (Midtrans)" untuk mengirim link pembayaran ke user. Transaksi selesai setelah user membayar.')
                                     ->color('info')
                                     ->size(TextSize::Small),
                             ]),

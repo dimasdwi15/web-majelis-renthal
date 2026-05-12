@@ -1,4 +1,5 @@
 import './bootstrap';
+import './cart-store';
 
 import Alpine from 'alpinejs';
 

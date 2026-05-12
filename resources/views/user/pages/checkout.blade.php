@@ -1210,32 +1210,27 @@
                     this.setuju;
             },
 
-            hapusItem(id) {
-                Alpine.store('cart').hapus(id);
-                this.autoRefresh();
+            async hapusItem(id) {
+                await Alpine.store('cart').hapus(id);
             },
-            tambahQty(id) {
+            async tambahQty(id) {
                 const item = Alpine.store('cart').items[id];
                 if (!item) return;
                 if (item.qty < item.stok) {
-                    Alpine.store('cart').update(id, item.qty + 1);
-                    this.autoRefresh();
-                } else Alpine.store('toast').flash(
-                    `Stok "${item.nama}" sudah maksimal (${item.stok} unit).`, 'error');
+                    await Alpine.store('cart').update(id, item.qty + 1);
+                } else {
+                    Alpine.store('toast').flash(
+                        `Stok "${item.nama}" sudah maksimal (${item.stok} unit).`, 'error');
+                }
             },
-            kurangQty(id) {
+            async kurangQty(id) {
                 const item = Alpine.store('cart').items[id];
                 if (!item) return;
                 if (item.qty > 1) {
-                    Alpine.store('cart').update(id, item.qty - 1);
-                    this.autoRefresh();
+                    await Alpine.store('cart').update(id, item.qty - 1);
                 } else {
-                    Alpine.store('cart').hapus(id);
-                    this.autoRefresh();
+                    await Alpine.store('cart').hapus(id);
                 }
-            },
-            autoRefresh() {
-                setTimeout(() => window.location.reload(), 600);
             },
 
             handleFoto(e) {

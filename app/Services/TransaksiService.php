@@ -5,13 +5,15 @@ namespace App\Services;
 use App\Enums\MetodePembayaran;
 use App\Enums\StatusTransaksi;
 use App\Events\NotifikasiDikirim;
+use App\Models\BarangRusak;
 use App\Models\Denda;
 use App\Models\DendaFoto;
-use App\Models\Notifikasi;        
+use App\Models\Notifikasi;
 use App\Models\Pembayaran;
 use App\Models\Transaksi;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Midtrans\Config;
 use Midtrans\Snap;
 
@@ -40,8 +42,8 @@ class TransaksiService
                 nomorTransaksi: $transaksi->nomor_transaksi,
                 statusBaru: 'terlambat',
                 pesan: 'Batas waktu pengembalian sudah terlewati! Segera kembalikan barang untuk menghindari denda tambahan. '
-                    . 'Denda keterlambatan akan dihitung sebesar 50% dari total sewa (Rp '
-                    . number_format($transaksi->total_sewa * 0.5, 0, ',', '.') . ').'
+                    .'Denda keterlambatan akan dihitung sebesar 50% dari total sewa (Rp '
+                    .number_format($transaksi->total_sewa * 0.5, 0, ',', '.').').'
             );
         }
 
@@ -53,14 +55,14 @@ class TransaksiService
     {
         DB::transaction(function () use ($transaksi) {
             $transaksi->pembayaranUtama?->update([
-                'status'       => 'lunas',
+                'status' => 'lunas',
                 'dibayar_pada' => now(),
             ]);
 
             $transaksi->update([
-                'status'            => StatusTransaksi::Berjalan,
+                'status' => StatusTransaksi::Berjalan,
                 'status_pembayaran' => 'lunas',
-                'tanggal_ambil'     => now(),
+                'tanggal_ambil' => now(),
             ]);
 
             foreach ($transaksi->details as $detail) {
@@ -81,7 +83,7 @@ class TransaksiService
     public function ambilBarang(Transaksi $transaksi): void
     {
         $transaksi->update([
-            'status'        => StatusTransaksi::Berjalan,
+            'status' => StatusTransaksi::Berjalan,
             'tanggal_ambil' => now(),
         ]);
 
@@ -91,47 +93,76 @@ class TransaksiService
             nomorTransaksi: $transaksi->nomor_transaksi,
             statusBaru: 'berjalan',
             pesan: 'Barang telah diambil. Pastikan dikembalikan sebelum '
-                . $transaksi->tanggal_kembali->format('d M Y') . '.'
+                .$transaksi->tanggal_kembali->format('d M Y').'.'
         );
     }
 
     // ── 3. PROSES PENGEMBALIAN ──────────────────────────────────────────
+    /**
+     * @param  array<int, int>  $jumlahRusakPerDetailId  key = transaksi_detail.id, value = qty rusak
+     */
     public function prosesKembali(
         Transaksi $transaksi,
-        float  $dendaKerusakan = 0,
+        float $dendaKerusakan = 0,
         string $catatan = '',
-        array  $fotoFiles = []
+        array $fotoFiles = [],
+        array $jumlahRusakPerDetailId = [],
     ): void {
-        DB::transaction(function () use ($transaksi, $dendaKerusakan, $catatan, $fotoFiles) {
+        DB::transaction(function () use ($transaksi, $dendaKerusakan, $catatan, $fotoFiles, $jumlahRusakPerDetailId) {
             $totalDenda = 0;
 
+            $transaksi->load('details.barang');
             $transaksi->tanggal_dikembalikan = now();
+
+            $totalUnitRusak = 0;
+            foreach ($transaksi->details as $detail) {
+                $rusak = max(0, (int) ($jumlahRusakPerDetailId[$detail->id] ?? 0));
+                if ($rusak > $detail->jumlah) {
+                    throw ValidationException::withMessages([
+                        "kerusakan_detail_{$detail->id}" => "Maksimal {$detail->jumlah} unit untuk baris ini.",
+                    ]);
+                }
+                $totalUnitRusak += $rusak;
+            }
+
+            if ($dendaKerusakan > 0 && $totalUnitRusak === 0) {
+                throw ValidationException::withMessages([
+                    'dendaKerusakan' => 'Tentukan jumlah unit rusak minimal 1 pada salah satu barang yang disewa.',
+                ]);
+            }
+
+            if ($dendaKerusakan <= 0 && $totalUnitRusak > 0) {
+                throw ValidationException::withMessages([
+                    'dendaKerusakan' => 'Isi nominal denda kerusakan jika ada barang rusak.',
+                ]);
+            }
 
             $dendaTelat = $transaksi->hitung_denda_telat;
             if ($dendaTelat > 0) {
                 Denda::create([
                     'transaksi_id' => $transaksi->id,
-                    'jenis'        => 'terlambat',
-                    'jumlah'       => $dendaTelat,
-                    'catatan'      => 'Keterlambatan ' . $transaksi->hari_telat . ' hari · denda otomatis 50% dari total sewa',
-                    'dibuat_oleh'  => Auth::id(),
+                    'jenis' => 'terlambat',
+                    'jumlah' => $dendaTelat,
+                    'catatan' => 'Keterlambatan '.$transaksi->hari_telat.' hari · denda otomatis 50% dari total sewa',
+                    'dibuat_oleh' => Auth::id(),
                 ]);
                 $totalDenda += $dendaTelat;
             }
 
+            $dendaRusak = null;
             if ($dendaKerusakan > 0) {
                 $dendaRusak = Denda::create([
                     'transaksi_id' => $transaksi->id,
-                    'jenis'        => 'kerusakan',
-                    'jumlah'       => $dendaKerusakan,
-                    'catatan'      => $catatan,
-                    'dibuat_oleh'  => Auth::id(),
+                    'jenis' => 'kerusakan',
+                    'jumlah' => $dendaKerusakan,
+                    'catatan' => $catatan,
+                    'dibuat_oleh' => Auth::id(),
                 ]);
 
                 foreach ($fotoFiles as $file) {
                     $path = $file->store('denda', 'public');
                     DendaFoto::create([
-                        'denda_id'  => $dendaRusak->id,
+                        'denda_id' => $dendaRusak->id,
                         'path_foto' => $path,
                     ]);
                 }
@@ -140,14 +171,32 @@ class TransaksiService
             }
 
             $transaksi->update([
-                'status'               => StatusTransaksi::Dikembalikan,
-                'total_denda'          => $totalDenda,
-                'total_charge'         => $totalDenda,
+                'status' => StatusTransaksi::Dikembalikan,
+                'total_denda' => $totalDenda,
+                'total_charge' => $totalDenda,
                 'tanggal_dikembalikan' => now(),
             ]);
 
             foreach ($transaksi->details as $detail) {
-                $detail->barang->increment('stok', $detail->jumlah);
+                $rusak = max(0, (int) ($jumlahRusakPerDetailId[$detail->id] ?? 0));
+                $baik = $detail->jumlah - $rusak;
+
+                if ($baik > 0) {
+                    $detail->barang->increment('stok', $baik);
+                }
+
+                if ($rusak > 0) {
+                    BarangRusak::create([
+                        'transaksi_id' => $transaksi->id,
+                        'transaksi_detail_id' => $detail->id,
+                        'barang_id' => $detail->barang_id,
+                        'denda_id' => $dendaRusak?->id,
+                        'jumlah' => $rusak,
+                        'status' => BarangRusak::STATUS_MENUNGGU,
+                        'catatan_kerusakan' => $catatan !== '' ? $catatan : null,
+                        'dibuat_oleh' => Auth::id(),
+                    ]);
+                }
             }
 
             if ($totalDenda <= 0) {
@@ -167,9 +216,31 @@ class TransaksiService
                     nomorTransaksi: $transaksi->nomor_transaksi,
                     statusBaru: 'dikembalikan',
                     pesan: 'Barang telah dikembalikan. Terdapat tagihan denda sebesar Rp '
-                        . number_format($totalDenda, 0, ',', '.') . '. Silakan selesaikan pembayaran.'
+                        .number_format($totalDenda, 0, ',', '.').'. Silakan selesaikan pembayaran.'
                 );
             }
+        });
+    }
+
+    /**
+     * Setelah perbaikan fisik: tambah stok sewa dan tutup entri barang rusak.
+     */
+    public function kembalikanBarangRusakKeStok(BarangRusak $barangRusak): void
+    {
+        if ($barangRusak->status !== BarangRusak::STATUS_MENUNGGU) {
+            throw ValidationException::withMessages([
+                'status' => 'Hanya entri yang masih menunggu perbaikan yang bisa dikembalikan ke stok.',
+            ]);
+        }
+
+        DB::transaction(function () use ($barangRusak) {
+            $barangRusak->barang->increment('stok', $barangRusak->jumlah);
+
+            $barangRusak->update([
+                'status' => BarangRusak::STATUS_DIPERBAIKI,
+                'diperbaiki_pada' => now(),
+                'diperbaiki_oleh' => Auth::id(),
+            ]);
         });
     }
 
@@ -183,15 +254,15 @@ class TransaksiService
 
             Pembayaran::create([
                 'transaksi_id' => $transaksi->id,
-                'jenis'        => 'denda',
-                'jumlah'       => $transaksi->total_denda,
-                'metode'       => 'tunai',
-                'status'       => 'lunas',
+                'jenis' => 'denda',
+                'jumlah' => $transaksi->total_denda,
+                'metode' => 'tunai',
+                'status' => 'lunas',
                 'dibayar_pada' => now(),
             ]);
 
             $transaksi->update([
-                'status'            => StatusTransaksi::Selesai,
+                'status' => StatusTransaksi::Selesai,
                 'status_pembayaran' => 'lunas',
             ]);
 
@@ -215,22 +286,22 @@ class TransaksiService
     public function kirimTagihan(Transaksi $transaksi): string
     {
         // ── A. Konfigurasi & generate Snap Token Midtrans ───────────────
-        Config::$serverKey    = config('midtrans.server_key');
+        Config::$serverKey = config('midtrans.server_key');
         Config::$isProduction = config('midtrans.is_production');
-        Config::$isSanitized  = true;
-        Config::$is3ds        = true;
+        Config::$isSanitized = true;
+        Config::$is3ds = true;
 
         $totalDenda = (float) $transaksi->total_denda;
 
         $params = [
             'transaction_details' => [
-                'order_id'     => 'CHARGE-' . $transaksi->id . '-' . time(),
+                'order_id' => 'CHARGE-'.$transaksi->id.'-'.time(),
                 'gross_amount' => (int) $totalDenda,
             ],
             'customer_details' => [
                 'first_name' => $transaksi->user->name,
-                'email'      => $transaksi->user->email,
-                'phone'      => $transaksi->user->phone ?? '',
+                'email' => $transaksi->user->email,
+                'phone' => $transaksi->user->phone ?? '',
             ],
         ];
 
@@ -240,12 +311,12 @@ class TransaksiService
         Pembayaran::updateOrCreate(
             [
                 'transaksi_id' => $transaksi->id,
-                'jenis'        => 'denda',
-                'status'       => 'menunggu',
+                'jenis' => 'denda',
+                'status' => 'menunggu',
             ],
             [
-                'jumlah'             => $totalDenda,
-                'metode'             => 'midtrans',
+                'jumlah' => $totalDenda,
+                'metode' => 'midtrans',
                 'referensi_midtrans' => $snapToken,
             ]
         );
@@ -293,12 +364,12 @@ class TransaksiService
                 ->whereNull('dibayar_pada')
                 ->count() === 0;
 
-            if (!$semuaDendaLunas) {
+            if (! $semuaDendaLunas) {
                 return;
             }
 
             $transaksi->update([
-                'status'            => StatusTransaksi::Selesai,
+                'status' => StatusTransaksi::Selesai,
                 'status_pembayaran' => 'lunas',
             ]);
 
@@ -323,7 +394,7 @@ class TransaksiService
 
         foreach ($expired as $transaksi) {
             $transaksi->update([
-                'status'            => StatusTransaksi::Dibatalkan,
+                'status' => StatusTransaksi::Dibatalkan,
                 'status_pembayaran' => 'gagal',
             ]);
 
@@ -356,7 +427,7 @@ class TransaksiService
             }
 
             $transaksi->update([
-                'status'            => StatusTransaksi::Dibatalkan,
+                'status' => StatusTransaksi::Dibatalkan,
                 'status_pembayaran' => 'gagal',
             ]);
 
@@ -369,7 +440,7 @@ class TransaksiService
                 nomorTransaksi: $transaksi->nomor_transaksi,
                 statusBaru: 'dibatalkan',
                 pesan: 'Pesanan dibatalkan otomatis karena pembayaran Midtrans tidak diselesaikan dalam 24 jam. '
-                    . 'Stok barang telah dikembalikan.'
+                    .'Stok barang telah dikembalikan.'
             );
         }
 

@@ -20,8 +20,11 @@ class KatalogController extends Controller
         // Pastikan eager-load menggunakan nama relasi yang benar:
         // - fotoUtama : hasOne BarangFoto (foto pertama / utama)
         // - fotos     : hasMany BarangFoto (semua foto, untuk galeri di modal detail)
+        //
+        // Hanya barang status "aktif" + kategori masih aktif (konsisten dengan sidebar).
         $query = Barang::with(['kategori', 'fotoUtama', 'fotos'])
-            ->where('status', 'aktif');
+            ->aktif()
+            ->whereHas('kategori', fn ($q) => $q->where('aktif', 1));
 
         // Filter: pencarian teks
         if ($request->filled('search')) {
@@ -33,9 +36,10 @@ class KatalogController extends Controller
             });
         }
 
-        // Filter: kategori (multi-select)
-        if ($request->filled('kategori')) {
-            $query->whereIn('kategori_barang_id', (array) $request->kategori);
+        // Filter: kategori (checkbox = ID numerik; link dari home = slug, mis. ?kategori=tenda)
+        $kategoriIds = $this->resolveKategoriBarangIds($request);
+        if ($kategoriIds !== []) {
+            $query->whereIn('kategori_barang_id', $kategoriIds);
         }
 
         // Filter: max harga per hari
@@ -45,15 +49,64 @@ class KatalogController extends Controller
 
         // Sorting
         match ($request->get('sort', 'terbaru')) {
-            'harga_asc'  => $query->orderBy('harga_per_hari', 'asc'),
+            'harga_asc' => $query->orderBy('harga_per_hari', 'asc'),
             'harga_desc' => $query->orderBy('harga_per_hari', 'desc'),
-            'nama_asc'   => $query->orderBy('nama', 'asc'),
-            default      => $query->latest(),
+            'nama_asc' => $query->orderBy('nama', 'asc'),
+            default => $query->latest(),
         };
 
         $perPage = (int) $request->get('perPage', 6);
-        $barang  = $query->paginate($perPage)->withQueryString();
+        $barang = $query->paginate($perPage)->withQueryString();
 
         return view('user.pages.katalog', compact('barang', 'kategori'));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function resolveKategoriBarangIds(Request $request): array
+    {
+        if (! $request->filled('kategori')) {
+            return [];
+        }
+
+        $raw = $request->kategori;
+        $values = is_array($raw) ? $raw : [$raw];
+
+        $ids = [];
+        $slugs = [];
+
+        foreach ($values as $v) {
+            if ($v === null || $v === '') {
+                continue;
+            }
+            if (is_numeric($v)) {
+                $ids[] = (int) $v;
+            } else {
+                $slugs[] = (string) $v;
+            }
+        }
+
+        if ($slugs !== []) {
+            $fromSlug = KategoriBarang::query()
+                ->where('aktif', 1)
+                ->whereIn('slug', $slugs)
+                ->pluck('id')
+                ->all();
+            $ids = array_merge($ids, $fromSlug);
+        }
+
+        $ids = array_values(array_unique(array_filter($ids)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        // Hanya ID yang benar-benar kategori aktif (cegah manipulasi URL)
+        return KategoriBarang::query()
+            ->where('aktif', 1)
+            ->whereIn('id', $ids)
+            ->pluck('id')
+            ->all();
     }
 }

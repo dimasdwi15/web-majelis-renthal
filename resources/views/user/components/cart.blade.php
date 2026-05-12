@@ -1,395 +1,162 @@
-{{-- ── 1. CSRF meta ─────────────────────────────────────────────────── --}}
-@once
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-@endonce
+{{-- Hidrasi awal dari session (hindari race GET /keranjang/sync vs POST tambah) --}}
+<script>
+    window.__INITIAL_CART__ = @json(\App\Support\CartSessionHelper::getRefreshedCart());
+</script>
 
-{{-- ── 2. Material Symbols font ─────────────────────────────────────── --}}
-@once
-    <link
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
-        rel="stylesheet">
-@endonce
+{{-- Panel keranjang (drawer kanan) + toast --}}
+<div x-data
+    @keydown.escape.window="$store.cart.panelOpen && $store.cart.closePanel()">
 
-{{-- Alpine dimuat sekali lewat Vite `resources/js/app.js`. Jangan tambahkan CDN Alpine di sini
-     atau di partial lain di halaman yang sama — inisialisasi ganda akan menjalankan `alpine:init`
-     lagi dan mengosongkan store keranjang ke nilai Blade (kosong saat first paint). --}}
+    {{-- Backdrop --}}
+    <div x-show="$store.cart.panelOpen" x-cloak
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        @click="$store.cart.closePanel()"
+        class="fixed inset-0 z-[60] bg-[#251D1D]/70 backdrop-blur-sm"
+        style="display: none;"></div>
 
-{{-- ── 3. Alpine Stores (cart & toast) ─────────────────────────────── --}}
-@once
-    <script>
-        document.addEventListener('alpine:init', () => {
-
-            Alpine.store('cart', {
-                // Pakai object JSON {} bukan [] agar kunci barang_id konsisten (bukan indeks array).
-                items: @json((object) session('cart', [])),
-                open: false,
-                version: 0,
-                _busy: false,
-                /** Antrean fetch cart agar tambah/hapus/update tidak jalan paralel. */
-                _apiChain: Promise.resolve(),
-
-                get count() {
-                    return Object.values(this.items).reduce((s, i) => s + (i.qty || 0), 0);
-                },
-                get total() {
-                    return Object.values(this.items).reduce((s, i) => s + (i.harga || 0) * (i.qty || 0),
-                        0);
-                },
-                get isEmpty() {
-                    return this.count === 0;
-                },
-                get keys() {
-                    return Object.keys(this.items);
-                },
-
-                formatRupiah(n) {
-                    return 'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(n);
-                },
-                csrf() {
-                    return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-                },
-
-                /** Normalisasi respons server → plain object dengan kunci string barang id. */
-                normalizeServerCart(raw) {
-                    if (raw === undefined) return null;
-                    if (raw === null) return {};
-                    if (Array.isArray(raw)) {
-                        if (!raw.length) return {};
-                        const o = {};
-                        for (const row of raw) {
-                            if (row && row.barang_id != null) o[String(row.barang_id)] = row;
-                        }
-                        return o;
-                    }
-                    if (typeof raw === 'object') {
-                        const o = {};
-                        for (const k of Object.keys(raw)) o[String(k)] = raw[k];
-                        return o;
-                    }
-                    return {};
-                },
-
-                syncItems(newCart) {
-                    const next = this.normalizeServerCart(newCart);
-                    if (next === null) return;
-                    this.items = next;
-                    this.version++;
-                },
-
-                /** Jalankan satu operasi jaringan cart setelah operasi sebelumnya selesai. */
-                api(fn) {
-                    const p = this._apiChain.then(() => fn(), () => fn());
-                    this._apiChain = p.catch(() => {});
-                    return p;
-                },
-
-                openPanel() {
-                    this.open = true;
-                },
-
-                async tambahItem(barangId) {
-                    if (barangId === null || barangId === undefined || barangId === '') return false;
-
-                    return this.api(async () => {
-                        this._busy = true;
-                        try {
-                            const res = await fetch(`/keranjang/tambah/${barangId}`, {
-                                method: 'POST',
-                                credentials: 'same-origin',
-                                headers: {
-                                    'X-CSRF-TOKEN': this.csrf(),
-                                    'Accept': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                },
-                            });
-                            const d = await res.json();
-                            if (res.ok && d.success) {
-                                this.syncItems(d.cart);
-                                Alpine.store('toast').flash(d.message, 'success');
-                                return true;
-                            }
-                            Alpine.store('toast').flash(d.message ?? 'Gagal menambahkan.', 'error');
-                            return false;
-                        } catch (e) {
-                            console.error('tambahItem error:', e);
-                            Alpine.store('toast').flash('Terjadi kesalahan koneksi.', 'error');
-                            return false;
-                        } finally {
-                            this._busy = false;
-                        }
-                    });
-                },
-
-                async hapus(id) {
-                    return this.api(async () => {
-                        this._busy = true;
-                        try {
-                            const res = await fetch(`/keranjang/hapus/${id}`, {
-                                method: 'DELETE',
-                                credentials: 'same-origin',
-                                headers: {
-                                    'X-CSRF-TOKEN': this.csrf(),
-                                    'Accept': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                },
-                            });
-                            const d = await res.json();
-                            if (d.success) {
-                                this.syncItems(d.cart);
-                                Alpine.store('toast').flash('Item dihapus dari keranjang.', 'info');
-                            }
-                        } catch {
-                            Alpine.store('toast').flash('Gagal menghapus item.', 'error');
-                        } finally {
-                            this._busy = false;
-                        }
-                    });
-                },
-
-                async update(id, qty) {
-                    return this.api(async () => {
-                        this._busy = true;
-                        try {
-                            const res = await fetch(`/keranjang/update/${id}`, {
-                                method: 'PATCH',
-                                credentials: 'same-origin',
-                                headers: {
-                                    'X-CSRF-TOKEN': this.csrf(),
-                                    'Content-Type': 'application/json',
-                                    'Accept': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                },
-                                body: JSON.stringify({
-                                    qty
-                                }),
-                            });
-                            const d = await res.json();
-                            if (d.success) this.syncItems(d.cart);
-                            else Alpine.store('toast').flash(d.message, 'error');
-                        } catch {
-                            Alpine.store('toast').flash('Gagal mengupdate qty.', 'error');
-                        } finally {
-                            this._busy = false;
-                        }
-                    });
-                },
-
-                async kosongkan() {
-                    return this.api(async () => {
-                        try {
-                            const res = await fetch('/keranjang/kosongkan', {
-                                method: 'DELETE',
-                                credentials: 'same-origin',
-                                headers: {
-                                    'X-CSRF-TOKEN': this.csrf(),
-                                    'Accept': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                },
-                            });
-                            const d = await res.json();
-                            if (d.success) {
-                                this.syncItems(d.cart);
-                                Alpine.store('toast').flash('Keranjang dikosongkan.', 'info');
-                            }
-                        } catch {
-                            Alpine.store('toast').flash('Gagal mengosongkan keranjang.', 'error');
-                        }
-                    });
-                },
-            });
-
-            Alpine.store('toast', {
-                show: false,
-                message: '',
-                type: 'success',
-                _timer: null,
-
-                flash(message, type = 'success') {
-                    this.message = message;
-                    this.type = type;
-                    this.show = true;
-                    clearTimeout(this._timer);
-                    this._timer = setTimeout(() => {
-                        this.show = false;
-                    }, 3000);
-                },
-            });
-        });
-    </script>
-@endonce
-
-{{-- TOAST NOTIFICATION --}}
-<div x-data x-show="$store.toast.show" x-transition:enter="transition ease-out duration-300"
-    x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
-    x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0"
-    x-transition:leave-end="opacity-0 translate-y-4"
-    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-xl shadow-2xl
-           text-sm font-semibold flex items-center gap-3 min-w-[260px] max-w-sm border"
-    :class="{
-        'bg-[#2d2a1e] border-[#655e44]/50 text-[#F2E8C6]': $store.toast.type === 'success',
-        'bg-red-950   border-red-700/50   text-red-200': $store.toast.type === 'error',
-        'bg-[#1a1412] border-[#655e44]/30 text-[#F2E8C6]': $store.toast.type === 'info',
-    }">
-
-    <span class="material-symbols-outlined text-lg flex-shrink-0"
-        :class="{
-            'text-green-400': $store.toast.type === 'success',
-            'text-red-400': $store.toast.type === 'error',
-            'text-[#a8956a]': $store.toast.type === 'info',
-        }"
-        x-text="{
-            success : 'check_circle',
-            error   : 'error',
-            info    : 'info',
-        }[$store.toast.type]">
-    </span>
-
-    <span x-text="$store.toast.message" class="flex-1 leading-snug"></span>
-
-    <button @click="$store.toast.show = false" class="opacity-40 hover:opacity-100 transition-opacity flex-shrink-0">
-        <span class="material-symbols-outlined text-base">close</span>
-    </button>
-</div>
-
-{{-- CART SLIDE PANEL — state dari syncItems() (tambah/hapus/update); tidak fetch /keranjang/refresh. --}}
-<div x-data>
-
-    {{-- Overlay --}}
-    <div x-show="$store.cart.open" x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0" @click="$store.cart.open = false"
-        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[998]"></div>
-
-    {{-- Panel --}}
-    <div x-show="$store.cart.open" x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
-        x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0"
+    {{-- Drawer --}}
+    <aside x-show="$store.cart.panelOpen" x-cloak
+        x-transition:enter="transform transition ease-out duration-300"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in duration-200"
+        x-transition:leave-start="translate-x-0"
         x-transition:leave-end="translate-x-full"
-        class="fixed right-0 top-0 h-full w-full max-w-sm bg-[#1a1412] z-[999] flex flex-col shadow-2xl border-l border-[#655e44]/30">
+        class="fixed top-0 right-0 z-[70] h-full w-full max-w-md flex flex-col shadow-2xl border-l border-[#655e44]/25"
+        style="display: none; background: linear-gradient(165deg, #1e1714 0%, #251D1D 45%, #1a1512 100%);">
 
         {{-- Header --}}
-        <div class="flex items-center justify-between px-6 py-5 border-b border-[#655e44]/30 flex-shrink-0">
-            <div class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-[#F2E8C6] text-xl">shopping_bag</span>
-                <h2 class="text-[#F2E8C6] font-bold text-sm uppercase tracking-[0.2em]">Keranjang Sewa</h2>
-                <span
-                    class="bg-[#4d462e] text-[#F2E8C6] text-[10px] font-black px-2 py-0.5 rounded-full min-w-[20px] text-center"
-                    x-text="$store.cart.count"></span>
+        <div
+            class="flex-shrink-0 flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b border-[#655e44]/20">
+            <div>
+                <p class="text-[10px] font-black tracking-[0.28em] uppercase text-[#a8956a] mb-1">Keranjang Sewa</p>
+                <h2 class="font-inter text-lg font-black text-[#F2E8C6] tracking-tight leading-none">Gear Terpilih</h2>
+                <p class="text-[11px] text-[#F2E8C6]/45 mt-2 leading-snug max-w-[240px]">
+                    Sesuaikan jumlah unit sebelum lanjut ke checkout.
+                </p>
             </div>
-            <button @click="$store.cart.open = false"
-                class="text-[#F2E8C6]/40 hover:text-[#F2E8C6] transition-colors p-1 rounded hover:bg-[#655e44]/30">
-                <span class="material-symbols-outlined">close</span>
+            <button type="button" @click="$store.cart.closePanel()"
+                class="flex h-10 w-10 items-center justify-center rounded-xl text-[#F2E8C6]/60 hover:text-[#F2E8C6] hover:bg-[#655e44]/30 transition-colors border border-transparent hover:border-[#655e44]/35"
+                aria-label="Tutup keranjang">
+                <span class="material-symbols-outlined text-[22px]">close</span>
             </button>
         </div>
 
-        {{-- Items List --}}
-        <div class="flex-1 overflow-y-auto px-6 py-4">
-
-            {{-- Empty State --}}
+        {{-- List --}}
+        <div class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
             <template x-if="$store.cart.isEmpty">
-                <div class="flex flex-col items-center justify-center h-full py-16 text-center">
-                    <span class="material-symbols-outlined text-6xl text-[#655e44]/30 mb-4">shopping_cart</span>
-                    <p class="text-[#F2E8C6]/50 text-sm uppercase tracking-widest font-semibold">Keranjang kosong</p>
-                    <p class="text-[#F2E8C6]/30 text-xs mt-1 mb-6">Tambahkan item dari katalog</p>
-                    <a href="{{ route('katalog') }}" @click="$store.cart.open = false"
-                        class="px-6 py-2.5 border border-[#655e44]/50 text-[#F2E8C6]/70 text-[10px] uppercase tracking-[0.2em] hover:border-[#655e44] hover:text-[#F2E8C6] hover:bg-[#655e44]/20 transition-all rounded">
-                        Lihat Katalog
+                <div class="flex flex-col items-center justify-center text-center py-16 px-6">
+                    <div
+                        class="w-16 h-16 rounded-2xl bg-[#655e44]/15 border border-[#655e44]/25 flex items-center justify-center mb-4">
+                        <span class="material-symbols-outlined text-[#a8956a] text-3xl">shopping_bag</span>
+                    </div>
+                    <p class="text-sm font-semibold text-[#F2E8C6]/90 mb-1">Belum ada barang</p>
+                    <p class="text-xs text-[#F2E8C6]/40 mb-6 leading-relaxed">Tambahkan gear dari katalog — stok &amp;
+                        harga otomatis tersinkron.</p>
+                    <a href="{{ route('katalog') }}" @click="$store.cart.closePanel()"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#a8956a] text-[#251D1D] text-[10px] font-black uppercase tracking-widest hover:bg-[#c4b08c] transition-colors shadow-lg shadow-black/20">
+                        <span class="material-symbols-outlined text-base">inventory_2</span>
+                        Jelajahi Katalog
                     </a>
                 </div>
             </template>
 
-            {{-- Cart Items --}}
-            <template x-if="!$store.cart.isEmpty">
-                <div class="space-y-3" :key="$store.cart.version">
-                    <template x-for="barangId in $store.cart.keys" :key="barangId">
-                        <div class="bg-[#251D1D] rounded-lg p-4 flex gap-3 border border-[#655e44]/20 group/item">
-
-                            {{-- Foto --}}
-                            <div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-[#1a1412]">
-                                <img :src="$store.cart.items[barangId]?.foto ? `/storage/${$store.cart.items[barangId].foto}` :
-                                    '/images/no-image.png'"
-                                    :alt="$store.cart.items[barangId]?.nama" class="w-full h-full object-cover">
-                            </div>
-
-                            {{-- Detail --}}
-                            <div class="flex-1 min-w-0">
-                                <p class="text-[#F2E8C6] text-xs font-semibold uppercase tracking-wide leading-tight line-clamp-2 mb-1"
-                                    x-text="$store.cart.items[barangId]?.nama"></p>
-                                <p class="text-[#a8956a] text-xs font-bold mb-1"
-                                    x-text="$store.cart.formatRupiah($store.cart.items[barangId]?.harga ?? 0) + '/hari'">
-                                </p>
-                                <p class="text-[#655e44] text-[10px] mb-2"
-                                    x-text="'Stok: ' + ($store.cart.items[barangId]?.stok ?? 0) + ' unit'"></p>
-
-                                {{-- Qty Control --}}
-                                <div class="flex items-center gap-2">
-                                    {{-- Tombol Kurang --}}
-                                    <button
-                                        @click="$store.cart.items[barangId]?.qty > 1
-                                            ? $store.cart.update(barangId, $store.cart.items[barangId].qty - 1)
-                                            : $store.cart.hapus(barangId)"
-                                        class="w-6 h-6 flex items-center justify-center rounded bg-[#655e44]/20 hover:bg-[#655e44] text-[#F2E8C6] transition-colors flex-shrink-0">
-                                        <span class="material-symbols-outlined text-sm leading-none">remove</span>
-                                    </button>
-
-                                    <span class="text-[#F2E8C6] text-xs font-bold w-5 text-center"
-                                        x-text="$store.cart.items[barangId]?.qty ?? 0"></span>
-
-                                    {{-- Tombol Tambah --}}
-                                    <button
-                                        @click="($store.cart.items[barangId]?.qty ?? 0) < ($store.cart.items[barangId]?.stok ?? 0)
-                                            ? $store.cart.tambahItem(barangId)
-                                            : Alpine.store('toast').flash(`Stok '${$store.cart.items[barangId]?.nama}' sudah maksimal (${$store.cart.items[barangId]?.stok} unit tersedia).`, 'error')"
-                                        class="w-6 h-6 flex items-center justify-center rounded bg-[#655e44]/20 hover:bg-[#655e44] text-[#F2E8C6] transition-colors flex-shrink-0"
-                                        :class="($store.cart.items[barangId]?.qty ?? 0) >= ($store.cart.items[barangId]?.stok ??
-                                            0) ? 'opacity-40' : ''">
-                                        <span class="material-symbols-outlined text-sm leading-none">add</span>
-                                    </button>
-
-                                    <span class="ml-auto text-[#a8956a] text-xs font-bold"
-                                        x-text="$store.cart.formatRupiah(($store.cart.items[barangId]?.harga ?? 0) * ($store.cart.items[barangId]?.qty ?? 0))">
-                                    </span>
-                                </div>
-
-                                <div x-show="($store.cart.items[barangId]?.qty ?? 0) >= ($store.cart.items[barangId]?.stok ?? 0)"
-                                    class="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-900/30 border border-amber-700/30 px-2 py-0.5 rounded-full">
-                                    <span class="material-symbols-outlined text-[11px]">warning</span>
-                                    Stok Maksimal
-                                </div>
-                            </div>
-
-                            {{-- Hapus --}}
-                            <button @click="$store.cart.hapus(barangId)"
-                                class="text-[#F2E8C6]/20 hover:text-red-400 transition-colors flex-shrink-0 self-start mt-0.5 opacity-0 group-hover/item:opacity-100">
-                                <span class="material-symbols-outlined text-base">delete</span>
+            <template x-for="(item, id) in $store.cart.items" :key="id + '-' + $store.cart.version">
+                <article
+                    class="group rounded-2xl border border-[#655e44]/20 bg-[#1a1412]/80 p-3.5 flex gap-3 shadow-sm hover:border-[#a8956a]/35 transition-colors">
+                    <div
+                        class="w-[72px] h-[72px] rounded-xl overflow-hidden bg-[#0f0c0b] border border-[#655e44]/15 flex-shrink-0">
+                        <img :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'" :alt="item.nama"
+                            class="w-full h-full object-cover">
+                    </div>
+                    <div class="flex-1 min-w-0 flex flex-col">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="text-[12px] font-bold text-[#F2E8C6] leading-snug line-clamp-2 uppercase tracking-wide"
+                                x-text="item.nama"></h3>
+                            <button type="button" @click="$store.cart.hapus(id)"
+                                class="flex-shrink-0 p-1 rounded-lg text-[#F2E8C6]/35 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                title="Hapus">
+                                <span class="material-symbols-outlined text-[18px]">delete</span>
                             </button>
                         </div>
-                    </template>
-                </div>
+                        <p class="text-[10px] text-[#a8956a] font-semibold mt-0.5">
+                            <span
+                                x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(Math.round(item.harga))"></span>
+                            <span class="text-[#F2E8C6]/35 font-normal">/hari</span>
+                        </p>
+                        <div class="flex items-center justify-between mt-auto pt-2">
+                            <div class="inline-flex items-center rounded-xl border border-[#655e44]/35 bg-[#251D1D]/60 p-0.5">
+                                <button type="button" @click="$store.cart.decrement(id)"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-[#F2E8C6]/80 hover:bg-[#655e44]/40 transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">remove</span>
+                                </button>
+                                <span class="min-w-[2rem] text-center text-xs font-black text-[#F2E8C6]"
+                                    x-text="item.qty"></span>
+                                <button type="button" @click="$store.cart.increment(id)"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-[#F2E8C6]/80 hover:bg-[#655e44]/40 transition-colors disabled:opacity-35"
+                                    :disabled="item.qty >= item.stok">
+                                    <span class="material-symbols-outlined text-[18px]">add</span>
+                                </button>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[9px] uppercase tracking-wider text-[#F2E8C6]/35">Subtotal /hari</p>
+                                <p class="text-[12px] font-black text-[#F2E8C6]"
+                                    x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(Math.round(item.harga * item.qty))">
+                                </p>
+                            </div>
+                        </div>
+                        <p class="text-[9px] text-[#F2E8C6]/30 mt-1" x-show="item.qty >= item.stok">
+                            Stok tersisa: <span x-text="item.stok"></span>
+                        </p>
+                    </div>
+                </article>
             </template>
         </div>
 
-        {{-- Footer --}}
-        <template x-if="!$store.cart.isEmpty">
-            <div class="flex-shrink-0 border-t border-[#655e44]/30 px-6 py-5 space-y-3 bg-[#1a1412]">
-                <div class="flex justify-between items-baseline">
-                    <span class="text-[#F2E8C6]/50 text-[10px] uppercase tracking-widest">Total Estimasi / Hari</span>
-                    <span class="text-[#a8956a] font-extrabold text-xl"
-                        x-text="$store.cart.formatRupiah($store.cart.total)"></span>
-                </div>
-                <p class="text-[#F2E8C6]/25 text-[9px] uppercase tracking-wider">*Belum termasuk durasi & deposit</p>
-
-                <a href="{{ route('checkout.index') }}" @click="$store.cart.open = false"
-                    class="w-full block text-center bg-[#4d462e] text-[#F2E8C6] py-3.5 rounded text-[10px] uppercase tracking-[0.2em] font-bold hover:bg-[#655e44] transition-colors">
-                    Lanjut ke Checkout
-                </a>
-
-                <button @click="$store.cart.kosongkan()"
-                    class="w-full text-center text-[#F2E8C6]/25 text-[9px] uppercase tracking-widest hover:text-red-400 transition-colors py-1">
-                    Kosongkan Keranjang
-                </button>
+        {{-- Footer CTA --}}
+        <div
+            class="flex-shrink-0 border-t border-[#655e44]/20 px-5 py-4 space-y-3 bg-[#1a1412]/95 backdrop-blur-md">
+            <div class="flex items-center justify-between text-[11px]">
+                <span class="text-[#F2E8C6]/45 uppercase tracking-widest font-bold">Total rate / hari</span>
+                <span class="text-[#F2E8C6] font-black text-sm"
+                    x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(Math.round($store.cart.subtotalPerHari))"></span>
             </div>
-        </template>
+            <a href="{{ route('checkout.index') }}" @click="$store.cart.closePanel()"
+                class="flex w-full items-center justify-center gap-2 py-3.5 rounded-xl font-inter font-black text-[11px] uppercase tracking-[0.18em] transition-all duration-200 shadow-lg border border-[#a8956a]/40"
+                :class="$store.cart.isEmpty ? 'pointer-events-none opacity-40 bg-[#655e44]/20 text-[#F2E8C6]/50' :
+                    'bg-gradient-to-r from-[#a8956a] to-[#8a7a56] text-[#251D1D] hover:brightness-110 hover:-translate-y-0.5'">
+                <span class="material-symbols-outlined text-[18px]">payments</span>
+                Lanjut Checkout
+            </a>
+            <a href="{{ route('katalog') }}" @click="$store.cart.closePanel()"
+                class="block text-center text-[10px] font-bold uppercase tracking-widest text-[#655e44] hover:text-[#a8956a] transition-colors">
+                Tambah barang lain
+            </a>
+        </div>
+    </aside>
+
+    {{-- Toast --}}
+    <div x-show="$store.toast.visible" x-cloak
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 translate-y-2"
+        x-transition:enter-end="opacity-100 translate-y-0"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100 translate-y-0"
+        x-transition:leave-end="opacity-0 translate-y-2"
+        class="fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 max-w-sm w-[calc(100%-2rem)] pointer-events-none"
+        style="display: none;">
+        <div class="pointer-events-auto rounded-2xl px-4 py-3 shadow-xl border flex items-start gap-3"
+            :class="$store.toast.type === 'error'
+                ? 'bg-[#2c1515] border-red-500/30 text-red-100'
+                : 'bg-[#1e1714] border-[#655e44]/40 text-[#F2E8C6]'">
+            <span class="material-symbols-outlined text-xl flex-shrink-0"
+                x-text="$store.toast.type === 'error' ? 'error' : 'check_circle'"></span>
+            <p class="text-xs font-semibold leading-relaxed" x-text="$store.toast.message"></p>
+        </div>
     </div>
 </div>

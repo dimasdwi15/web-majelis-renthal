@@ -4,9 +4,8 @@ namespace App\Models;
 
 use App\Enums\MetodePembayaran;
 use App\Enums\StatusTransaksi;
-use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
-
+use Illuminate\Database\Eloquent\Model;
 
 class Transaksi extends Model
 {
@@ -28,15 +27,15 @@ class Transaksi extends Model
     ];
 
     protected $casts = [
-        'status'              => StatusTransaksi::class,
-        'metode_pembayaran'   => MetodePembayaran::class,
-        'tanggal_ambil'       => 'date',
-        'tanggal_kembali'     => 'date',
+        'status' => StatusTransaksi::class,
+        'metode_pembayaran' => MetodePembayaran::class,
+        'tanggal_ambil' => 'date',
+        'tanggal_kembali' => 'date',
         'tanggal_dikembalikan' => 'datetime',
-        'batas_pembayaran'    => 'datetime',
-        'total_sewa'          => 'decimal:2',
-        'total_denda'         => 'decimal:2',
-        'total_charge'        => 'decimal:2',
+        'batas_pembayaran' => 'datetime',
+        'total_sewa' => 'decimal:2',
+        'total_denda' => 'decimal:2',
+        'total_charge' => 'decimal:2',
     ];
 
     // ── Relasi ──────────────────────────────────────────────────────────
@@ -115,6 +114,14 @@ class Transaksi extends Model
         return $this->hasMany(Denda::class, 'transaksi_id');
     }
 
+    /**
+     * Unit yang masuk inventori rusak setelah pengembalian bermasalah.
+     */
+    public function barangRusak()
+    {
+        return $this->hasMany(BarangRusak::class, 'transaksi_id');
+    }
+
     // ── Computed Properties ─────────────────────────────────────────────
 
     /**
@@ -182,6 +189,7 @@ class Transaksi extends Model
     public function getIsDendaLunasAttribute(): bool
     {
         $dendaBelumBayar = $this->denda()->whereNull('dibayar_pada')->count();
+
         return $dendaBelumBayar === 0;
     }
 
@@ -198,11 +206,11 @@ class Transaksi extends Model
      */
     public function getIsCodExpiredAttribute(): bool
     {
-        if (!$this->metode_pembayaran?->isCod()) {
+        if (! $this->metode_pembayaran?->isCod()) {
             return false;
         }
 
-        if (!$this->batas_pembayaran) {
+        if (! $this->batas_pembayaran) {
             return false;
         }
 
@@ -215,7 +223,7 @@ class Transaksi extends Model
      */
     public function getSisaWaktuCodAttribute(): ?string
     {
-        if (!$this->batas_pembayaran || !$this->metode_pembayaran?->isCod()) {
+        if (! $this->batas_pembayaran || ! $this->metode_pembayaran?->isCod()) {
             return null;
         }
 
@@ -230,5 +238,4 @@ class Transaksi extends Model
     {
         return $this->hasMany(TransaksiDetail::class, 'transaksi_id', 'id');
     }
-    
 }

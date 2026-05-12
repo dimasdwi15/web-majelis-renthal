@@ -32,39 +32,7 @@ class CheckoutController extends Controller
 
     private function refreshCartSession(): array
     {
-        $cart = CartSessionHelper::normalizeKeys(session('cart', []));
-
-        if ($cart === []) {
-            return $cart;
-        }
-
-        $barangList = Barang::with('fotoUtama')
-            ->whereIn('id', array_keys($cart))
-            ->get()
-            ->keyBy(fn ($b) => (string) $b->id);
-
-        foreach ($cart as $id => $item) {
-            $barang = $barangList->get((string) $id);
-
-            if (!$barang || $barang->status !== 'aktif') {
-                unset($cart[$id]);
-                continue;
-            }
-
-            $cart[$id]['nama']  = $barang->nama;
-            $cart[$id]['harga'] = (float) $barang->harga_per_hari;
-            $cart[$id]['stok']  = $barang->stok;
-            $cart[$id]['foto']  = $barang->fotoUtama?->path_foto;
-
-            if ($cart[$id]['qty'] > $barang->stok) {
-                $cart[$id]['qty'] = max(1, $barang->stok);
-            }
-        }
-
-        session(['cart' => $cart]);
-        session()->save();
-
-        return $cart;
+        return CartSessionHelper::getRefreshedCart();
     }
 
     /**

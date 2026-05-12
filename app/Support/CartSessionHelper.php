@@ -2,31 +2,80 @@
 
 namespace App\Support;
 
-/**
- * Normalisasi struktur cart di session (kunci string id, barang_id int).
- * Penting saat session.serialization = json agar kunci tidak bentrok.
- */
-final class CartSessionHelper
+use App\Models\Barang;
+
+class CartSessionHelper
 {
     /**
-     * @param  mixed  $cart
+     * Normalisasi struktur keranjang di session (kunci string, qty minimal 1).
+     *
+     * @param  array<string, mixed>  $cart
+     * @return array<string, array{nama: string, harga: float, stok: int, qty: int, foto: ?string}>
      */
-    public static function normalizeKeys(mixed $cart): array
+    public static function normalizeKeys(array $cart): array
     {
-        if (! is_array($cart) || $cart === []) {
-            return [];
-        }
-
         $out = [];
-        foreach ($cart as $key => $row) {
+        foreach ($cart as $id => $row) {
             if (! is_array($row)) {
                 continue;
             }
-            $id = isset($row['barang_id']) ? (string) (int) $row['barang_id'] : (string) (int) $key;
-            $row['barang_id'] = (int) ($row['barang_id'] ?? $id);
-            $out[$id] = $row;
+            $key = (string) $id;
+            $out[$key] = [
+                'qty' => max(1, (int) ($row['qty'] ?? 1)),
+                'nama' => (string) ($row['nama'] ?? ''),
+                'harga' => isset($row['harga']) ? (float) $row['harga'] : 0.0,
+                'stok' => isset($row['stok']) ? (int) $row['stok'] : 0,
+                'foto' => $row['foto'] ?? null,
+            ];
         }
 
         return $out;
+    }
+
+    /**
+     * Samakan data keranjang dengan DB (nama, harga, stok, foto) dan buang barang tidak aktif.
+     *
+     * @return array<string, array{nama: string, harga: float, stok: int, qty: int, foto: ?string}>
+     */
+    public static function getRefreshedCart(): array
+    {
+        $cart = self::normalizeKeys(session('cart', []));
+
+        if ($cart === []) {
+            session(['cart' => []]);
+            session()->save();
+
+            return [];
+        }
+
+        $ids = array_map(intval(...), array_keys($cart));
+
+        $barangList = Barang::with('fotoUtama')
+            ->whereIn('id', $ids)
+            ->get()
+            ->keyBy(fn ($b) => (string) $b->id);
+
+        foreach ($cart as $id => $item) {
+            $barang = $barangList->get((string) $id);
+
+            if (! $barang || $barang->status !== 'aktif') {
+                unset($cart[$id]);
+                continue;
+            }
+
+            $cart[$id]['nama'] = $barang->nama;
+            $cart[$id]['harga'] = (float) $barang->harga_per_hari;
+            $cart[$id]['stok'] = $barang->stok;
+            $cart[$id]['foto'] = $barang->fotoUtama?->path_foto;
+
+            if ($cart[$id]['qty'] > $barang->stok) {
+                $cart[$id]['qty'] = max(1, $barang->stok);
+            }
+        }
+
+        session(['cart' => $cart]);
+        session()->save();
+
+        return $cart;
     }
 }

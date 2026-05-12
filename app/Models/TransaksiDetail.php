@@ -19,7 +19,7 @@ class TransaksiDetail extends Model
 
     protected $casts = [
         'harga_per_hari' => 'decimal:2',
-        'subtotal'       => 'decimal:2',
+        'subtotal' => 'decimal:2',
     ];
 
     // ── Relasi ──────────────────────────────────────────────────────────
@@ -38,5 +38,10 @@ class TransaksiDetail extends Model
     public function barang()
     {
         return $this->belongsTo(Barang::class, 'barang_id');
+    }
+
+    public function barangRusak()
+    {
+        return $this->hasMany(BarangRusak::class, 'transaksi_detail_id');
     }
 }

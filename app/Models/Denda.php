@@ -14,7 +14,7 @@ class Denda extends Model
         'jumlah',
         'catatan',
         'dibuat_oleh',
-        'dibayar_pada'
+        'dibayar_pada',
     ];
 
     public function transaksi()
@@ -30,5 +30,10 @@ class Denda extends Model
     public function foto()
     {
         return $this->hasMany(DendaFoto::class, 'denda_id');
+    }
+
+    public function barangRusak()
+    {
+        return $this->hasMany(BarangRusak::class, 'denda_id');
     }
 }

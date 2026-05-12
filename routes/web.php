@@ -47,6 +47,9 @@ Route::get('/katalog', [KatalogController::class, 'index'])->name('katalog');
 // Keranjang — session-based, tidak perlu login
 Route::prefix('keranjang')->name('keranjang.')->group(function () {
 
+    Route::get('/sync', [KeranjangController::class, 'sync'])
+        ->name('sync');
+
     Route::get('/', [KeranjangController::class, 'index'])
         ->name('index');
 
