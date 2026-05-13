@@ -131,7 +131,7 @@
         <div class="absolute inset-0 z-0 overflow-hidden">
             <img id="hero-img" alt="Rugged Mountains"
                 class="w-full h-[115%] object-cover contrast-[1.08] brightness-[0.78] -top-[10%] absolute left-0"
-                src="{{ asset('images/hero.jpg') }}" style="transform: translateY(0px)">
+                src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2400&q=85&fit=crop" style="transform: translateY(0px)">
             {{-- Gradient overlays --}}
             <div class="absolute inset-0 bg-gradient-to-t from-[#251D1D]/80 via-[#251D1D]/20 to-transparent"></div>
             <div class="absolute inset-0 bg-gradient-to-r from-[#251D1D]/30 to-transparent"></div>
