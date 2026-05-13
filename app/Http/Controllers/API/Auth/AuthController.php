@@ -38,19 +38,14 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Buat user baru
         $user = User::create([
             'name'      => $request->name,
             'email'     => $request->email,
             'password'  => Hash::make($request->password),
-
-            // DEFAULT ROLE USER
             'role'      => 'user',
-
             'google_id' => $request->firebase_uid,
         ]);
 
-        // Generate Sanctum token
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -64,6 +59,10 @@ class AuthController extends Controller
     // ─────────────────────────────────────────────────────────────
     // LOGIN — Email & Password
     // POST /api/auth/login
+    //
+    // Jika akun terdaftar via Google (google_id ada) dan password
+    // tidak cocok → kembalikan auth_provider: 'google' supaya
+    // Flutter bisa tampilkan pesan yang tepat.
     // ─────────────────────────────────────────────────────────────
     public function login(Request $request): JsonResponse
     {
@@ -79,11 +78,24 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Cek email & password
-        if (!Auth::attempt([
+        // Coba autentikasi
+        $credentials = [
             'email'    => $request->email,
-            'password' => $request->password
-        ])) {
+            'password' => $request->password,
+        ];
+
+        if (!Auth::attempt($credentials)) {
+            // Cek apakah user ini sebenarnya terdaftar via Google
+            $existingUser = User::where('email', $request->email)->first();
+
+            if ($existingUser && $existingUser->google_id) {
+                return response()->json([
+                    'success'       => false,
+                    'message'       => 'Akun ini terdaftar menggunakan Google. Silakan login dengan Google.',
+                    'auth_provider' => 'google',
+                ], 401);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Email atau kata sandi salah.',
@@ -92,10 +104,8 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->firstOrFail();
 
-        // Hapus token lama
+        // Hapus token lama & buat token baru
         $user->tokens()->delete();
-
-        // Buat token baru
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -109,6 +119,10 @@ class AuthController extends Controller
     // ─────────────────────────────────────────────────────────────
     // GOOGLE AUTH
     // POST /api/auth/google
+    //
+    // Jika email sudah terdaftar via email (tidak punya google_id)
+    // → kembalikan auth_provider: 'email' supaya Flutter bisa
+    // tampilkan pesan yang tepat.
     // ─────────────────────────────────────────────────────────────
     public function googleAuth(Request $request): JsonResponse
     {
@@ -132,34 +146,37 @@ class AuthController extends Controller
             ->first();
 
         if ($user) {
+            // Jika akun ditemukan via email tapi TIDAK punya google_id
+            // berarti akun ini terdaftar dengan email & password
+            if (!$user->google_id) {
+                return response()->json([
+                    'success'       => false,
+                    'message'       => 'Akun ini terdaftar menggunakan email & password. Silakan login dengan email.',
+                    'auth_provider' => 'email',
+                ], 403);
+            }
 
-            // Update data user Google
+            // Update data user Google yang sudah ada
             $user->update([
-                'google_id' => $request->google_id,
-                'avatar'    => $request->avatar ?? $user->avatar,
+                'google_id'         => $request->google_id,
+                'avatar'            => $request->avatar ?? $user->avatar,
                 'email_verified_at' => $user->email_verified_at ?? now(),
             ]);
         } else {
-
-            // Buat akun baru Google
+            // Buat akun baru via Google
             $user = User::create([
                 'name'              => $request->name,
                 'email'             => $request->email,
                 'password'          => Hash::make(Str::random(32)),
-
-                // DEFAULT ROLE USER
                 'role'              => 'user',
-
                 'google_id'         => $request->google_id,
                 'avatar'            => $request->avatar,
                 'email_verified_at' => now(),
             ]);
         }
 
-        // Hapus token lama
+        // Hapus token lama & buat token baru
         $user->tokens()->delete();
-
-        // Buat token baru
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -222,9 +239,9 @@ class AuthController extends Controller
             'email'    => 'required|email|exists:users,email',
             'password' => 'required|string|min:6|confirmed',
         ], [
-            'email.exists'        => 'Email tidak ditemukan.',
-            'password.confirmed'  => 'Konfirmasi password tidak cocok.',
-            'password.min'        => 'Password minimal 6 karakter.',
+            'email.exists'       => 'Email tidak ditemukan.',
+            'password.confirmed' => 'Konfirmasi password tidak cocok.',
+            'password.min'       => 'Password minimal 6 karakter.',
         ]);
 
         if ($validator->fails()) {

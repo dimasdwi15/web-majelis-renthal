@@ -27,6 +27,8 @@
     @endif
 
     <style>
+        [x-cloak] { display: none !important; }
+
         /* Map container */
         #cuaca-map {
             height: 280px;
@@ -34,10 +36,7 @@
             border-radius: 16px;
             z-index: 0;
         }
-
-        .leaflet-container {
-            font-family: inherit;
-        }
+        .leaflet-container { font-family: inherit; }
 
         /* Search dropdown */
         .lokasi-dropdown {
@@ -48,13 +47,12 @@
             background: white;
             border: 1.5px solid #e0d9c8;
             border-radius: 14px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.10);
             z-index: 1000;
             overflow: hidden;
             max-height: 280px;
             overflow-y: auto;
         }
-
         .lokasi-dropdown-item {
             padding: 10px 14px;
             cursor: pointer;
@@ -65,52 +63,223 @@
             gap: 10px;
             align-items: flex-start;
         }
-
-        .lokasi-dropdown-item:last-child {
-            border-bottom: none;
-        }
-
-        .lokasi-dropdown-item:hover {
-            background: #faf8f2;
-        }
-
-        .lokasi-dropdown-item .loc-icon {
-            color: #7b6f52;
-            flex-shrink: 0;
-            margin-top: 1px;
-            font-size: 16px;
-        }
-
-        .lokasi-dropdown-item .loc-nama {
-            font-weight: 600;
-            color: #1b1c1a;
-            line-height: 1.3;
-        }
-
-        .lokasi-dropdown-item .loc-sub {
-            color: #9b947c;
-            font-size: 10px;
-            margin-top: 1px;
-        }
+        .lokasi-dropdown-item:last-child { border-bottom: none; }
+        .lokasi-dropdown-item:hover { background: #faf8f2; }
+        .lokasi-dropdown-item .loc-icon { color: #7b6f52; flex-shrink: 0; margin-top: 1px; font-size: 16px; }
+        .lokasi-dropdown-item .loc-nama { font-weight: 600; color: #1b1c1a; line-height: 1.3; }
+        .lokasi-dropdown-item .loc-sub { color: #9b947c; font-size: 10px; margin-top: 1px; }
 
         /* Upload preview hover */
-        .upload-preview-wrap:hover .upload-overlay {
-            opacity: 1 !important;
+        .upload-preview-wrap:hover .upload-overlay { opacity: 1 !important; }
+
+        /* ═══════════════════════════════════════════
+           REKOMENDASI DETAIL MODAL
+           ═══════════════════════════════════════════ */
+        .rdm-wrap {
+            position: relative;
+            width: 100%;
+            max-width: 820px;
+            background: #fff;
+            border-radius: 22px;
+            box-shadow: 0 28px 70px rgba(27,28,26,0.24);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 48px);
         }
+        .rdm-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: #faf9f5;
+            border-bottom: 1px solid #e0d9c8;
+            flex-shrink: 0;
+        }
+        .rdm-body {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+        @media (min-width: 640px) {
+            .rdm-body { flex-direction: row; }
+        }
+        .rdm-photo {
+            background: #f0ece0;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        @media (max-width: 639px) {
+            .rdm-photo { height: 240px; }
+        }
+        @media (min-width: 640px) {
+            .rdm-photo { width: 300px; }
+        }
+        @media (min-width: 768px) {
+            .rdm-photo { width: 340px; }
+        }
+        .rdm-stage {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+            overflow: hidden;
+            background-color: #ece8d7;
+            background-image:
+                linear-gradient(45deg, #e4e0ce 25%, transparent 25%),
+                linear-gradient(-45deg, #e4e0ce 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #e4e0ce 75%),
+                linear-gradient(-45deg, transparent 75%, #e4e0ce 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .rdm-stage-img {
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 28px);
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+            border-radius: 6px;
+            box-shadow: 0 2px 16px rgba(27,28,26,0.10);
+            transition: opacity 0.2s ease;
+        }
+        .rdm-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 5;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.90);
+            border: 1px solid rgba(77,70,46,0.18);
+            border-radius: 9px;
+            color: #2e2a1e;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .rdm-arrow:hover { background: #4d462e; color: #F2E8C6; border-color: #4d462e; }
+        .rdm-arrow-l { left: 8px; }
+        .rdm-arrow-r { right: 8px; }
+        .rdm-counter {
+            position: absolute;
+            bottom: 8px; right: 8px;
+            background: rgba(27,28,26,0.50);
+            backdrop-filter: blur(4px);
+            color: #fff;
+            font-size: 10px; font-weight: 700;
+            letter-spacing: 0.06em;
+            padding: 3px 9px;
+            border-radius: 20px;
+            pointer-events: none;
+        }
+        .rdm-status {
+            position: absolute;
+            top: 8px; left: 8px;
+            font-size: 9px; font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 20px;
+            z-index: 4;
+        }
+        .rdm-thumbs {
+            display: flex;
+            gap: 6px;
+            padding: 8px 10px;
+            background: #e4dfce;
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+        .rdm-thumbs::-webkit-scrollbar { height: 3px; }
+        .rdm-thumbs::-webkit-scrollbar-track { background: #e4dfce; }
+        .rdm-thumbs::-webkit-scrollbar-thumb { background: #b8b09a; border-radius: 3px; }
+        .rdm-thumb {
+            width: 50px; height: 50px;
+            flex-shrink: 0;
+            border-radius: 7px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s, opacity 0.15s, transform 0.15s;
+            background: #d6d0bc;
+        }
+        .rdm-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .rdm-thumb-active { border-color: #4d462e !important; opacity: 1 !important; transform: scale(1.05); }
+        .rdm-thumb:not(.rdm-thumb-active) { opacity: 0.45; }
+        .rdm-thumb:not(.rdm-thumb-active):hover { opacity: 0.8; }
+        .rdm-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .rdm-info-body {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            padding: 20px 22px;
+        }
+        .rdm-info-body::-webkit-scrollbar { width: 4px; }
+        .rdm-info-body::-webkit-scrollbar-track { background: transparent; }
+        .rdm-info-body::-webkit-scrollbar-thumb { background: #d6cfbe; border-radius: 4px; }
+        .rdm-info-footer {
+            flex-shrink: 0;
+            padding: 14px 22px;
+            background: #faf9f5;
+            border-top: 1px solid #e0d9c8;
+        }
+        .rdm-spec-line {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 7px 0;
+            border-bottom: 1px dashed #e0d9c8;
+            font-size: 12px;
+            color: #5a584f;
+            line-height: 1.5;
+        }
+        .rdm-spec-line:last-child { border-bottom: none; }
+        .rdm-spec-bullet {
+            width: 5px; height: 5px;
+            border-radius: 50%;
+            background: #4d462e;
+            flex-shrink: 0;
+            margin-top: 6px;
+        }
+
+        /* cuaca badge weather */
+        .weather-badge-good { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+        .weather-badge-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .weather-badge-danger { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+        .weather-badge-neutral { background: #f5f3ed; border-color: #e0d9c8; color: #5a584f; }
     </style>
 </head>
 
 <body class="bg-[#f5f3ed] text-[#1b1c1a] antialiased">
     @include('user.components.navbar')
 
-    <div x-data="checkout" class="max-w-screen-xl mx-auto px-4 md:px-8 py-12">
+    {{-- ═══════════════════════════════════════════════════════
+         ROOT ALPINE — rekomendasi detail modal di sini
+         agar bisa di-share oleh cuacaWidget di dalam checkout
+         ═══════════════════════════════════════════════════════ --}}
+    <div x-data="checkoutPage" class="max-w-screen-xl mx-auto px-4 md:px-8 py-12">
 
         {{-- PAGE HEADER --}}
         <div class="mb-12">
             <div class="flex items-center gap-3 mb-3">
                 <div class="h-px w-10 bg-[#4d462e]"></div>
-                <span class="font-syne text-[10px] font-bold tracking-[0.3em] uppercase text-[#7b6f52]">Majelis
-                    Rental</span>
+                <span class="font-syne text-[10px] font-bold tracking-[0.3em] uppercase text-[#7b6f52]">Majelis Rental</span>
             </div>
             <h1 class="font-syne font-extrabold text-4xl md:text-5xl uppercase tracking-tight leading-none mb-4">
                 Konfirmasi <span class="text-[#4d462e]">Sewa</span>
@@ -145,47 +314,35 @@
             <div class="flex-1 space-y-5 min-w-0">
 
                 {{-- 01 · DURASI SEWA --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">01</span>
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">01</span>
                         <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Durasi Sewa</h2>
                     </div>
                     <div class="p-6">
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                             <div>
-                                <label
-                                    class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Tanggal
-                                    Ambil</label>
+                                <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Tanggal Ambil</label>
                                 <div class="relative">
-                                    <span
-                                        class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">calendar_today</span>
+                                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">calendar_today</span>
                                     <input type="date" x-model="tglAmbil" :min="today()"
                                         x-on:change="if(tglKembali && tglKembali <= tglAmbil) tglKembali = ''; onDateChange()"
                                         class="w-full pl-10 pr-3 py-3 border-[1.5px] border-[#e0d9c8] rounded-xl text-sm bg-white focus:outline-none focus:border-[#4d462e] focus:ring-2 focus:ring-[#4d462e]/10 transition-all">
                                 </div>
                             </div>
                             <div>
-                                <label
-                                    class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Tanggal
-                                    Kembali</label>
+                                <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Tanggal Kembali</label>
                                 <div class="relative">
-                                    <span
-                                        class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">event</span>
+                                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">event</span>
                                     <input type="date" x-model="tglKembali" :min="tglAmbil || today()"
                                         :disabled="!tglAmbil"
                                         class="w-full pl-10 pr-3 py-3 border-[1.5px] border-[#e0d9c8] rounded-xl text-sm bg-white focus:outline-none focus:border-[#4d462e] focus:ring-2 focus:ring-[#4d462e]/10 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                                 </div>
                             </div>
-                            <div
-                                class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#2e2a1e] to-[#4d462e] px-6 py-5 text-center">
+                            <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#2e2a1e] to-[#4d462e] px-6 py-5 text-center">
                                 <div class="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/5"></div>
-                                <span class="font-syne font-extrabold text-4xl text-[#F2E8C6] leading-none block"
-                                    x-text="durasi || '—'"></span>
-                                <span class="text-[9px] tracking-[0.22em] uppercase text-[#F2E8C6]/60 mt-1 block">Hari
-                                    Sewa</span>
+                                <span class="font-syne font-extrabold text-4xl text-[#F2E8C6] leading-none block" x-text="durasi || '—'"></span>
+                                <span class="text-[9px] tracking-[0.22em] uppercase text-[#F2E8C6]/60 mt-1 block">Hari Sewa</span>
                             </div>
                         </div>
                         <div x-show="tglAmbil && tglKembali && durasi === 0" x-cloak
@@ -196,59 +353,43 @@
                     </div>
                 </div>
 
-                {{-- ═══ LOKASI & CUACA — Free Map Picker ═══ --}}
+                {{-- ═══ LOKASI & CUACA ═══ --}}
                 <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md"
                     x-data="cuacaWidget">
 
                     {{-- Header --}}
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#3a5c3a] text-[#d4f0d4] text-[11px] font-bold flex items-center justify-center flex-shrink-0">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#3a5c3a] text-[#d4f0d4] text-[11px] font-bold flex items-center justify-center flex-shrink-0">
                             <span class="material-symbols-outlined text-[15px]">partly_cloudy_day</span>
                         </span>
                         <div class="flex-1">
-                            <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Lokasi Destinasi
-                                &amp; Prakiraan Cuaca</h2>
-                            <p class="text-[10px] text-[#9b947c] mt-0.5">Opsional · Gunung, pantai, kebun, atau titik
-                                mana saja</p>
+                            <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Lokasi Destinasi &amp; Prakiraan Cuaca</h2>
+                            <p class="text-[10px] text-[#9b947c] mt-0.5">Opsional · Gunung, pantai, kebun, atau titik mana saja</p>
                         </div>
-                        <span
-                            class="text-[9px] font-bold bg-[#3a5c3a]/10 text-[#3a5c3a] border border-[#3a5c3a]/20 px-2.5 py-1 rounded-full">Opsional</span>
+                        <span class="text-[9px] font-bold bg-[#3a5c3a]/10 text-[#3a5c3a] border border-[#3a5c3a]/20 px-2.5 py-1 rounded-full">Opsional</span>
                     </div>
 
                     <div class="p-6 space-y-4">
 
-                        {{-- ── SEARCH BOX ── --}}
+                        {{-- SEARCH BOX --}}
                         <div>
-                            <label
-                                class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">
-                                Cari Lokasi Destinasi
-                            </label>
+                            <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">Cari Lokasi Destinasi</label>
                             <div class="relative">
-                                <span
-                                    class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">search</span>
+                                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#7b6f52] text-[18px] pointer-events-none">search</span>
                                 <input type="text" x-model="searchQuery" x-on:input.debounce.500ms="cariLokasi()"
                                     x-on:keydown.escape="tutupDropdown()"
                                     placeholder="Ketik nama gunung, pantai, desa, kebun..."
                                     class="w-full pl-10 pr-10 py-3 border-[1.5px] border-[#e0d9c8] rounded-xl text-sm bg-white focus:outline-none focus:border-[#3a5c3a] focus:ring-2 focus:ring-[#3a5c3a]/10 transition-all">
-                                {{-- Loading spinner search --}}
                                 <div x-show="loadingSearch" class="absolute right-3 top-1/2 -translate-y-1/2">
                                     <svg class="animate-spin h-4 w-4 text-[#3a5c3a]" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10"
-                                            stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor"
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                        </path>
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                 </div>
-                                {{-- Clear button --}}
                                 <button x-show="searchQuery && !loadingSearch" x-on:click="resetLokasi()"
                                     class="absolute right-3 top-1/2 -translate-y-1/2 text-[#9b947c] hover:text-[#4d462e] transition-colors">
                                     <span class="material-symbols-outlined text-[18px]">close</span>
                                 </button>
-
-                                {{-- Dropdown hasil search --}}
                                 <div x-show="hasilSearch.length > 0 && dropdownTerbuka" x-cloak class="lokasi-dropdown">
                                     <template x-for="item in hasilSearch" :key="item.osm_id">
                                         <div class="lokasi-dropdown-item" x-on:click="pilihLokasi(item)">
@@ -263,21 +404,18 @@
                             </div>
                             <p class="text-[10px] text-[#9b947c] mt-1.5">
                                 Atau <button type="button" x-on:click="gunakanGPSSekarang()"
-                                    class="text-[#3a5c3a] font-semibold hover:underline">gunakan lokasi saat
-                                    ini</button>
+                                    class="text-[#3a5c3a] font-semibold hover:underline">gunakan lokasi saat ini</button>
                             </p>
                         </div>
 
-                        {{-- ── LOKASI TERPILIH BADGE ── --}}
+                        {{-- LOKASI TERPILIH BADGE --}}
                         <div x-show="lokasiTerpilih" x-cloak
                             class="flex items-center gap-3 px-4 py-3 bg-[#3a5c3a]/8 border border-[#3a5c3a]/20 rounded-xl">
                             <span class="material-symbols-outlined text-[#3a5c3a] text-[20px]">location_on</span>
                             <div class="flex-1 min-w-0">
-                                <p class="text-[12px] font-bold text-[#3a5c3a] truncate"
-                                    x-text="lokasiTerpilih?.nama_pendek"></p>
+                                <p class="text-[12px] font-bold text-[#3a5c3a] truncate" x-text="lokasiTerpilih?.nama_pendek"></p>
                                 <p class="text-[10px] text-[#5a7a5a] truncate"
-                                    x-text="lokasiTerpilih ? `${lokasiTerpilih.lat.toFixed(5)}, ${lokasiTerpilih.lon.toFixed(5)}` : ''">
-                                </p>
+                                    x-text="lokasiTerpilih ? `${lokasiTerpilih.lat.toFixed(5)}, ${lokasiTerpilih.lon.toFixed(5)}` : ''"></p>
                             </div>
                             <button type="button" x-on:click="resetLokasi()"
                                 class="text-[#5a7a5a] hover:text-red-600 transition-colors flex-shrink-0">
@@ -292,14 +430,11 @@
                             Pilih tanggal ambil terlebih dahulu untuk melihat prakiraan cuaca.
                         </div>
 
-                        {{-- ── MAP PICKER ── --}}
+                        {{-- MAP PICKER --}}
                         <div>
                             <div class="flex items-center justify-between mb-2">
-                                <p class="text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52]">Atau
-                                    Tandai di Peta</p>
-                                <span
-                                    class="text-[9px] text-[#9b947c] bg-[#f5f3ed] border border-[#e0d9c8] px-2 py-0.5 rounded-full">Klik
-                                    / drag pin</span>
+                                <p class="text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52]">Atau Tandai di Peta</p>
+                                <span class="text-[9px] text-[#9b947c] bg-[#f5f3ed] border border-[#e0d9c8] px-2 py-0.5 rounded-full">Klik / drag pin</span>
                             </div>
                             <div id="cuaca-map" class="border border-[#e0d9c8]"></div>
                             <p class="text-[10px] text-[#9b947c] mt-1.5">
@@ -307,67 +442,51 @@
                             </p>
                         </div>
 
-                        {{-- ── LOADING CUACA ── --}}
+                        {{-- LOADING CUACA --}}
                         <div x-show="loadingCuaca" x-cloak class="py-6">
                             <div class="flex flex-col items-center gap-3">
-                                <div
-                                    class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3a5c3a]/10 to-[#3a5c3a]/20 flex items-center justify-center">
-                                    <svg class="animate-spin h-5 w-5 text-[#3a5c3a]" fill="none"
-                                        viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10"
-                                            stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor"
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                        </path>
+                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3a5c3a]/10 to-[#3a5c3a]/20 flex items-center justify-center">
+                                    <svg class="animate-spin h-5 w-5 text-[#3a5c3a]" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                 </div>
                                 <p class="text-[12px] text-[#7b6f52]">Mengambil data cuaca...</p>
                             </div>
                         </div>
 
-                        {{-- ── ERROR CUACA ── --}}
+                        {{-- ERROR CUACA --}}
                         <div x-show="errorCuaca && !loadingCuaca" x-cloak
                             class="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                            <span
-                                class="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0 mt-0.5">error</span>
+                            <span class="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0 mt-0.5">error</span>
                             <p class="text-[12px] text-red-600" x-text="errorCuaca"></p>
                         </div>
 
-                        {{-- ── HASIL CUACA ── --}}
+                        {{-- HASIL CUACA --}}
                         <div x-show="cuaca && !loadingCuaca" x-cloak class="space-y-4">
 
                             {{-- Card cuaca utama --}}
                             <div class="rounded-2xl overflow-hidden border"
                                 :class="{
-                                    'border-red-200 bg-gradient-to-br from-red-50 to-red-100/50': cuaca
-                                        ?.level === 'danger',
-                                    'border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50': cuaca
-                                        ?.level === 'warning',
-                                    'border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50': cuaca
-                                        ?.warna === 'blue',
-                                    'border-green-200 bg-gradient-to-br from-green-50 to-green-100/50': cuaca
-                                        ?.level === 'good',
-                                    'border-[#e0d9c8] bg-gradient-to-br from-[#faf8f2] to-[#f5f3ec]': cuaca
-                                        ?.level === 'neutral',
+                                    'border-red-200 bg-gradient-to-br from-red-50 to-red-100/50': cuaca?.level === 'danger',
+                                    'border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50': cuaca?.level === 'warning',
+                                    'border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50': cuaca?.warna === 'blue',
+                                    'border-green-200 bg-gradient-to-br from-green-50 to-green-100/50': cuaca?.level === 'good',
+                                    'border-[#e0d9c8] bg-gradient-to-br from-[#faf8f2] to-[#f5f3ec]': cuaca?.level === 'neutral',
                                 }">
-
                                 <div class="px-5 pt-4 pb-0 flex items-start justify-between gap-3">
                                     <div>
-                                        <p class="font-syne font-extrabold text-[15px] text-[#1b1c1a]"
-                                            x-text="namaLokasi"></p>
+                                        <p class="font-syne font-extrabold text-[15px] text-[#1b1c1a]" x-text="namaLokasi"></p>
                                         <p class="text-[10px] text-[#7b6f52]" x-text="koordinatLabel"></p>
                                     </div>
                                     <div class="flex flex-col items-end">
                                         <img :src="cuaca?.icon" class="w-12 h-12 -mt-1" alt="cuaca">
-                                        <span class="text-[10px] text-[#7b6f52] -mt-1"
-                                            x-text="cuaca?.deskripsi"></span>
+                                        <span class="text-[10px] text-[#7b6f52] -mt-1" x-text="cuaca?.deskripsi"></span>
                                     </div>
                                 </div>
-
                                 <div class="px-5 pb-4 flex items-end gap-4">
                                     <div>
-                                        <span class="font-syne font-extrabold text-5xl leading-none text-[#1b1c1a]"
-                                            x-text="cuaca?.suhu + '°'"></span>
+                                        <span class="font-syne font-extrabold text-5xl leading-none text-[#1b1c1a]" x-text="cuaca?.suhu + '°'"></span>
                                         <span class="text-[11px] text-[#7b6f52] ml-1">C</span>
                                     </div>
                                     <div class="flex flex-col text-[11px] text-[#7b6f52] mb-1">
@@ -385,7 +504,6 @@
                                         </div>
                                     </div>
                                 </div>
-
                                 <div class="px-5 pb-4">
                                     <div class="flex items-start gap-2 rounded-xl px-4 py-3 text-[11px] font-medium leading-relaxed"
                                         :class="{
@@ -403,45 +521,96 @@
                                 </div>
                             </div>
 
-                            {{-- Rekomendasi Barang --}}
+                            {{-- ════════════════════════════════════════════════════
+                                 REKOMENDASI BARANG — dengan Detail Modal & Add to Cart
+                                 ════════════════════════════════════════════════════ --}}
                             <div x-show="rekomendasi.length > 0">
                                 <div class="flex items-center justify-between mb-3">
-                                    <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#7b6f52]">
-                                        Rekomendasi Perlengkapan</p>
-                                    <span
-                                        class="text-[9px] text-[#9b947c] bg-[#f5f3ed] border border-[#e0d9c8] px-2 py-0.5 rounded-full">Berdasarkan
-                                        kondisi cuaca</span>
+                                    <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#7b6f52]">Rekomendasi Perlengkapan</p>
+                                    <span class="text-[9px] text-[#9b947c] bg-[#f5f3ed] border border-[#e0d9c8] px-2 py-0.5 rounded-full">Berdasarkan kondisi cuaca</span>
                                 </div>
+
                                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     <template x-for="item in rekomendasi" :key="item.id">
-                                        <div
-                                            class="group relative bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-                                            <div class="aspect-square bg-[#f5f3ed] overflow-hidden">
+                                        <div x-data="{ addLoading: false, addDone: false }"
+                                            class="group relative bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col">
+
+                                            {{-- Foto --}}
+                                            <div class="relative aspect-square bg-[#f5f3ed] overflow-hidden cursor-pointer"
+                                                @click="$dispatch('open-rekomendasi-detail', item)">
                                                 <img :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'"
                                                     :alt="item.nama"
                                                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                                                {{-- overlay hint --}}
+                                                <div class="absolute inset-0 bg-[#1b1c1a]/0 group-hover:bg-[#1b1c1a]/25 transition-all duration-300 flex items-center justify-center">
+                                                    <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-1.5 flex items-center gap-1.5">
+                                                        <span class="material-symbols-outlined text-[13px] text-[#4d462e]">zoom_in</span>
+                                                        <span class="text-[9px] font-bold uppercase tracking-wider text-[#4d462e]">Lihat Detail</span>
+                                                    </div>
+                                                </div>
+                                                {{-- stok badge --}}
+                                                <div class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-[#e0d9c8] rounded-full px-2 py-0.5 text-[8px] font-bold text-[#4d462e]">
+                                                    <span x-text="item.stok"></span> unit
+                                                </div>
                                             </div>
-                                            <div class="p-3">
-                                                <span
-                                                    class="text-[8px] font-bold tracking-[0.1em] uppercase text-[#7b6f52] bg-[#f5f3ed] border border-[#e0d9c8] px-1.5 py-0.5 rounded-md"
+
+                                            {{-- Info --}}
+                                            <div class="p-3 flex flex-col flex-1">
+                                                <span class="text-[8px] font-bold tracking-[0.1em] uppercase text-[#7b6f52] bg-[#f5f3ed] border border-[#e0d9c8] px-1.5 py-0.5 rounded-md self-start"
                                                     x-text="item.kategori"></span>
-                                                <p class="font-syne font-bold text-[11px] uppercase leading-tight mt-1.5 text-[#1b1c1a]"
-                                                    x-text="item.nama"></p>
+                                                <p class="font-syne font-bold text-[11px] uppercase leading-tight mt-1.5 text-[#1b1c1a] cursor-pointer hover:text-[#4d462e] transition-colors"
+                                                    x-text="item.nama"
+                                                    @click="$dispatch('open-rekomendasi-detail', item)"></p>
                                                 <p class="text-[11px] text-[#4d462e] font-semibold mt-1">
-                                                    <span
-                                                        x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(item.harga)"></span>
+                                                    <span x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(item.harga)"></span>
                                                     <span class="text-[#9b947c] font-normal">/hr</span>
                                                 </p>
-                                                <a :href="'/katalog/' + item.id"
-                                                    class="mt-2 w-full flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[#4d462e]/8 border border-[#4d462e]/15 text-[9px] font-bold tracking-[0.1em] uppercase text-[#4d462e] hover:bg-[#4d462e] hover:text-[#F2E8C6] transition-all duration-200">
-                                                    <span
-                                                        class="material-symbols-outlined text-[12px]">add_shopping_cart</span>
-                                                    Lihat Detail
-                                                </a>
-                                            </div>
-                                            <div
-                                                class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm border border-[#e0d9c8] rounded-full px-2 py-0.5 text-[8px] font-bold text-[#4d462e]">
-                                                <span x-text="item.stok"></span> unit
+
+                                                {{-- Action buttons --}}
+                                                <div class="flex gap-1.5 mt-2">
+                                                    {{-- Detail button --}}
+                                                    <button type="button"
+                                                        @click="$dispatch('open-rekomendasi-detail', item)"
+                                                        class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f3ed] border border-[#e0d9c8] hover:bg-[#4d462e] hover:border-[#4d462e] hover:text-[#F2E8C6] text-[#4d462e] transition-all duration-200">
+                                                        <span class="material-symbols-outlined text-[14px]">info</span>
+                                                    </button>
+                                                    {{-- Add to cart button --}}
+                                                    <button type="button"
+                                                        @click="(async () => {
+                                                            if (addLoading || item.stok <= 0) return;
+                                                            addLoading = true;
+                                                            try {
+                                                                const ok = await Alpine.store('cart').tambahItem(item.id);
+                                                                if (ok) {
+                                                                    addDone = true;
+                                                                    setTimeout(() => addDone = false, 2500);
+                                                                }
+                                                            } finally {
+                                                                addLoading = false;
+                                                            }
+                                                        })()"
+                                                        :disabled="addLoading || item.stok <= 0"
+                                                        :class="addDone
+                                                            ? 'bg-green-500 border-green-500 text-white'
+                                                            : item.stok <= 0
+                                                                ? 'bg-[#f0ece0] border-[#e0d9c8] text-[#c8bfa8] cursor-not-allowed'
+                                                                : 'bg-[#4d462e]/8 border-[#4d462e]/15 text-[#4d462e] hover:bg-[#4d462e] hover:border-[#4d462e] hover:text-[#F2E8C6]'"
+                                                        class="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border text-[9px] font-bold tracking-[0.1em] uppercase transition-all duration-200">
+                                                        <template x-if="addLoading">
+                                                            <span class="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                                                        </template>
+                                                        <template x-if="!addLoading && addDone">
+                                                            <span class="material-symbols-outlined text-[12px]">check_circle</span>
+                                                        </template>
+                                                        <template x-if="!addLoading && !addDone && item.stok > 0">
+                                                            <span class="material-symbols-outlined text-[12px]">add_shopping_cart</span>
+                                                        </template>
+                                                        <template x-if="!addLoading && !addDone && item.stok <= 0">
+                                                            <span class="material-symbols-outlined text-[12px]">remove_shopping_cart</span>
+                                                        </template>
+                                                        <span x-text="addLoading ? '' : addDone ? 'Added!' : item.stok <= 0 ? 'Habis' : 'Tambah'"></span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </template>
@@ -454,20 +623,16 @@
                             </div>
                         </div>
 
-                    </div>{{-- /p-6 --}}
+                    </div>
                 </div>
                 {{-- ═══ END LOKASI & CUACA ═══ --}}
 
                 {{-- 02 · INVENTARIS GEAR --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-                    <div
-                        class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
                         <div class="flex items-center gap-3">
-                            <span
-                                class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center">02</span>
-                            <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Inventaris Gear
-                            </h2>
+                            <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center">02</span>
+                            <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Inventaris Gear</h2>
                         </div>
                         <a href="{{ route('katalog') }}"
                             class="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.12em] uppercase text-[#4d462e] hover:text-[#2e2a1e]">
@@ -478,8 +643,7 @@
                     <div class="divide-y divide-[#f0ece0]">
                         <template x-if="$store.cart.isEmpty">
                             <div class="py-16 text-center">
-                                <span
-                                    class="material-symbols-outlined text-5xl text-[#c8bfa8] block mb-3">shopping_bag</span>
+                                <span class="material-symbols-outlined text-5xl text-[#c8bfa8] block mb-3">shopping_bag</span>
                                 <p class="text-sm text-[#7b6f52] mb-5">Keranjang masih kosong</p>
                                 <a href="{{ route('katalog') }}"
                                     class="inline-flex items-center gap-2 px-6 py-2.5 bg-[#4d462e] text-[#F2E8C6] rounded-xl text-[10px] font-syne font-bold uppercase">
@@ -490,19 +654,16 @@
 
                         <template x-for="(item, id) in $store.cart.items" :key="id">
                             <div class="flex items-start gap-4 px-6 py-4 hover:bg-[#faf8f2]">
-                                <div
-                                    class="w-[68px] h-[68px] rounded-xl overflow-hidden bg-[#f5f3ed] border border-[#e0d9c8] flex-shrink-0">
+                                <div class="w-[68px] h-[68px] rounded-xl overflow-hidden bg-[#f5f3ed] border border-[#e0d9c8] flex-shrink-0">
                                     <img :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'"
                                         :alt="item.nama" class="w-full h-full object-cover">
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <p class="font-syne font-bold text-[14px] uppercase text-[#1b1c1a] leading-tight mb-0.5"
-                                        x-text="item.nama"></p>
+                                    <p class="font-syne font-bold text-[14px] uppercase text-[#1b1c1a] leading-tight mb-0.5" x-text="item.nama"></p>
                                     <p class="text-[11px] text-[#7b6f52] mb-2">
                                         <span x-text="rupiah(item.harga)"></span>/hari
                                         <span class="text-[#c8bfa8] ml-2">·</span>
-                                        <span class="text-[#9b947c] ml-1">Stok: <span
-                                                x-text="item.stok"></span></span>
+                                        <span class="text-[#9b947c] ml-1">Stok: <span x-text="item.stok"></span></span>
                                     </p>
                                     <div class="flex items-center gap-2 mb-2">
                                         <button @click="kurangQty(id)"
@@ -519,17 +680,14 @@
                                             class="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Maks</span>
                                     </div>
                                     <template x-if="durasi > 0">
-                                        <p class="text-[12px] font-semibold text-[#4d462e]">Subtotal: <span
-                                                x-text="rupiah(item.harga * item.qty * durasi)"></span></p>
+                                        <p class="text-[12px] font-semibold text-[#4d462e]">Subtotal: <span x-text="rupiah(item.harga * item.qty * durasi)"></span></p>
                                     </template>
                                     <template x-if="durasi === 0">
                                         <p class="text-[11px] text-[#9b947c]">Pilih durasi untuk lihat subtotal</p>
                                     </template>
                                 </div>
                                 <div class="flex flex-col items-end justify-between h-[68px]">
-                                    <button @click="hapusItem(id)"
-                                        class="text-[#9b947c] hover:text-red-600 transition-colors"
-                                        title="Hapus item">
+                                    <button @click="hapusItem(id)" class="text-[#9b947c] hover:text-red-600 transition-colors" title="Hapus item">
                                         <span class="material-symbols-outlined text-[18px]">delete</span>
                                     </button>
                                     <p class="text-[12px] font-semibold text-[#4d462e]">
@@ -542,56 +700,40 @@
                     </div>
 
                     <template x-if="!$store.cart.isEmpty">
-                        <div
-                            class="flex justify-between items-center px-6 py-3 bg-[#faf8f2] border-t border-[#e0d9c8]">
+                        <div class="flex justify-between items-center px-6 py-3 bg-[#faf8f2] border-t border-[#e0d9c8]">
                             <span class="text-[10px] text-[#7b6f52] uppercase tracking-widest">Rate / Hari</span>
-                            <span class="font-syne font-extrabold text-[16px] text-[#4d462e]"
-                                x-text="rupiah(subtotalPerHari)"></span>
+                            <span class="font-syne font-extrabold text-[16px] text-[#4d462e]" x-text="rupiah(subtotalPerHari)"></span>
                         </div>
                     </template>
                 </div>
 
                 {{-- 03 · IDENTITAS & JAMINAN --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">03</span>
-                        <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Identitas &amp; Jaminan
-                        </h2>
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">03</span>
+                        <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Identitas &amp; Jaminan</h2>
                     </div>
                     <div class="p-6 space-y-5">
-                        <div
-                            class="flex items-start gap-3 p-4 bg-[#4d462e]/5 border border-[#4d462e]/15 rounded-xl text-xs text-[#5a584f] leading-relaxed">
-                            <span
-                                class="material-symbols-outlined text-[18px] text-[#4d462e] flex-shrink-0 mt-0.5">info</span>
-                            <span>Kartu identitas fisik Anda akan <strong>ditahan admin</strong> saat pengambilan barang
-                                sebagai jaminan, dan dikembalikan ketika barang kembali dalam kondisi baik.</span>
+                        <div class="flex items-start gap-3 p-4 bg-[#4d462e]/5 border border-[#4d462e]/15 rounded-xl text-xs text-[#5a584f] leading-relaxed">
+                            <span class="material-symbols-outlined text-[18px] text-[#4d462e] flex-shrink-0 mt-0.5">info</span>
+                            <span>Kartu identitas fisik Anda akan <strong>ditahan admin</strong> saat pengambilan barang sebagai jaminan, dan dikembalikan ketika barang kembali dalam kondisi baik.</span>
                         </div>
 
                         <div>
-                            <label
-                                class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-3">Jenis
-                                Identitas</label>
+                            <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-3">Jenis Identitas</label>
                             <div class="grid grid-cols-3 gap-3">
                                 @foreach ([['val' => 'KTP', 'icon' => 'badge', 'label' => 'KTP'], ['val' => 'SIM', 'icon' => 'directions_car', 'label' => 'SIM'], ['val' => 'PELAJAR', 'icon' => 'school', 'label' => 'Pelajar']] as $opt)
                                     <label class="cursor-pointer">
-                                        <input type="radio" x-model="jenisIdentitas" value="{{ $opt['val'] }}"
-                                            class="sr-only">
+                                        <input type="radio" x-model="jenisIdentitas" value="{{ $opt['val'] }}" class="sr-only">
                                         <div class="flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
                                             :class="jenisIdentitas === '{{ $opt['val'] }}'
-                                                ?
-                                                'border-[#4d462e] bg-[#4d462e]/5 shadow-[0_0_0_3px_rgba(77,70,46,0.08)]' :
-                                                'border-[#e0d9c8] hover:border-[#c8bfa8]'">
+                                                ? 'border-[#4d462e] bg-[#4d462e]/5 shadow-[0_0_0_3px_rgba(77,70,46,0.08)]'
+                                                : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
                                             <div class="w-11 h-11 rounded-xl flex items-center justify-center transition-colors"
-                                                :class="jenisIdentitas === '{{ $opt['val'] }}' ? 'bg-[#4d462e]/10' :
-                                                    'bg-[#f5f3ed]'">
-                                                <span
-                                                    class="material-symbols-outlined text-[20px] text-[#4d462e]">{{ $opt['icon'] }}</span>
+                                                :class="jenisIdentitas === '{{ $opt['val'] }}' ? 'bg-[#4d462e]/10' : 'bg-[#f5f3ed]'">
+                                                <span class="material-symbols-outlined text-[20px] text-[#4d462e]">{{ $opt['icon'] }}</span>
                                             </div>
-                                            <span
-                                                class="font-syne font-bold text-[11px] tracking-[0.08em] uppercase text-[#1b1c1a]">{{ $opt['label'] }}</span>
+                                            <span class="font-syne font-bold text-[11px] tracking-[0.08em] uppercase text-[#1b1c1a]">{{ $opt['label'] }}</span>
                                         </div>
                                     </label>
                                 @endforeach
@@ -599,28 +741,21 @@
                         </div>
 
                         <div>
-                            <label
-                                class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">
+                            <label class="block text-[9px] font-semibold tracking-[0.15em] uppercase text-[#7b6f52] mb-2">
                                 Foto <span x-text="jenisIdentitas"></span>
                             </label>
-                            <div x-on:click="document.getElementById('foto_identitas').click()"
-                                class="cursor-pointer">
+                            <div x-on:click="document.getElementById('foto_identitas').click()" class="cursor-pointer">
                                 <div x-show="!fotoPreview"
                                     class="border-2 border-dashed border-[#c8bfa8] rounded-2xl p-10 text-center hover:border-[#4d462e] hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
-                                    <span
-                                        class="material-symbols-outlined text-[40px] text-[#c8bfa8] block mb-3">upload_file</span>
-                                    <p class="text-[14px] font-semibold text-[#4a473d]">Klik untuk upload foto <span
-                                            x-text="jenisIdentitas"></span></p>
+                                    <span class="material-symbols-outlined text-[40px] text-[#c8bfa8] block mb-3">upload_file</span>
+                                    <p class="text-[14px] font-semibold text-[#4a473d]">Klik untuk upload foto <span x-text="jenisIdentitas"></span></p>
                                     <p class="text-[11px] text-[#9b947c] mt-1">JPG, PNG, WEBP — maks. 5 MB</p>
                                 </div>
                                 <div x-show="fotoPreview"
                                     class="upload-preview-wrap relative rounded-2xl overflow-hidden border border-[#e0d9c8]">
                                     <img :src="fotoPreview" class="w-full max-h-52 object-cover block">
-                                    <div
-                                        class="upload-overlay absolute inset-0 bg-black/45 flex items-center justify-center opacity-0 transition-opacity duration-200">
-                                        <span
-                                            class="font-syne font-bold text-white text-[11px] tracking-[0.15em] uppercase">Ganti
-                                            Foto</span>
+                                    <div class="upload-overlay absolute inset-0 bg-black/45 flex items-center justify-center opacity-0 transition-opacity duration-200">
+                                        <span class="font-syne font-bold text-white text-[11px] tracking-[0.15em] uppercase">Ganti Foto</span>
                                     </div>
                                 </div>
                             </div>
@@ -629,44 +764,34 @@
                 </div>
 
                 {{-- 04 · METODE PEMBAYARAN --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">04</span>
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">04</span>
                         <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Metode Pembayaran</h2>
                     </div>
                     <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <label class="cursor-pointer">
                             <input type="radio" x-model="metodePembayaran" value="midtrans" class="sr-only">
                             <div class="p-5 border-2 rounded-2xl transition-all duration-200 h-full hover:-translate-y-0.5"
-                                :class="metodePembayaran === 'midtrans' ?
-                                    'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]' :
-                                    'border-[#e0d9c8] hover:border-[#c8bfa8]'">
+                                :class="metodePembayaran === 'midtrans'
+                                    ? 'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]'
+                                    : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
                                 <div class="flex items-start justify-between mb-4">
                                     <div class="flex items-center gap-3">
-                                        <div
-                                            class="w-10 h-10 rounded-xl bg-[#4d462e]/10 flex items-center justify-center">
-                                            <span
-                                                class="material-symbols-outlined text-[20px] text-[#4d462e]">credit_card</span>
+                                        <div class="w-10 h-10 rounded-xl bg-[#4d462e]/10 flex items-center justify-center">
+                                            <span class="material-symbols-outlined text-[20px] text-[#4d462e]">credit_card</span>
                                         </div>
-                                        <span
-                                            class="font-syne font-extrabold text-[13px] uppercase text-[#1b1c1a]">Cashless</span>
+                                        <span class="font-syne font-extrabold text-[13px] uppercase text-[#1b1c1a]">Cashless</span>
                                     </div>
                                     <div class="w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors"
                                         :class="metodePembayaran === 'midtrans' ? 'border-[#4d462e]' : 'border-[#c8bfa8]'">
-                                        <div x-show="metodePembayaran === 'midtrans'"
-                                            class="w-2 h-2 rounded-full bg-[#4d462e]"></div>
+                                        <div x-show="metodePembayaran === 'midtrans'" class="w-2 h-2 rounded-full bg-[#4d462e]"></div>
                                     </div>
                                 </div>
-                                <p class="text-[11px] text-[#7b6f52] leading-relaxed mb-3">Transfer bank, QRIS,
-                                    e-wallet via <strong class="text-[#4a473d]">Midtrans</strong>. Popup pembayaran
-                                    muncul langsung setelah checkout.</p>
+                                <p class="text-[11px] text-[#7b6f52] leading-relaxed mb-3">Transfer bank, QRIS, e-wallet via <strong class="text-[#4a473d]">Midtrans</strong>. Popup pembayaran muncul langsung setelah checkout.</p>
                                 <div class="flex flex-wrap gap-1.5">
                                     @foreach (['BCA', 'BNI', 'BRI', 'QRIS', 'GoPay', 'OVO'] as $m)
-                                        <span
-                                            class="text-[9px] font-bold bg-[#4d462e]/8 text-[#4d462e] border border-[#4d462e]/15 px-2 py-0.5 rounded-md">{{ $m }}</span>
+                                        <span class="text-[9px] font-bold bg-[#4d462e]/8 text-[#4d462e] border border-[#4d462e]/15 px-2 py-0.5 rounded-md">{{ $m }}</span>
                                     @endforeach
                                 </div>
                             </div>
@@ -674,32 +799,24 @@
                         <label class="cursor-pointer">
                             <input type="radio" x-model="metodePembayaran" value="tunai" class="sr-only">
                             <div class="p-5 border-2 rounded-2xl transition-all duration-200 h-full hover:-translate-y-0.5"
-                                :class="metodePembayaran === 'tunai' ?
-                                    'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]' :
-                                    'border-[#e0d9c8] hover:border-[#c8bfa8]'">
+                                :class="metodePembayaran === 'tunai'
+                                    ? 'border-[#4d462e] bg-[#4d462e]/[0.03] shadow-[0_0_0_3px_rgba(77,70,46,0.08)]'
+                                    : 'border-[#e0d9c8] hover:border-[#c8bfa8]'">
                                 <div class="flex items-start justify-between mb-4">
                                     <div class="flex items-center gap-3">
-                                        <div
-                                            class="w-10 h-10 rounded-xl bg-[#4d462e]/10 flex items-center justify-center">
-                                            <span
-                                                class="material-symbols-outlined text-[20px] text-[#4d462e]">payments</span>
+                                        <div class="w-10 h-10 rounded-xl bg-[#4d462e]/10 flex items-center justify-center">
+                                            <span class="material-symbols-outlined text-[20px] text-[#4d462e]">payments</span>
                                         </div>
-                                        <span class="font-syne font-extrabold text-[13px] uppercase text-[#1b1c1a]">COD
-                                            / Tunai</span>
+                                        <span class="font-syne font-extrabold text-[13px] uppercase text-[#1b1c1a]">COD / Tunai</span>
                                     </div>
                                     <div class="w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors"
                                         :class="metodePembayaran === 'tunai' ? 'border-[#4d462e]' : 'border-[#c8bfa8]'">
-                                        <div x-show="metodePembayaran === 'tunai'"
-                                            class="w-2 h-2 rounded-full bg-[#4d462e]"></div>
+                                        <div x-show="metodePembayaran === 'tunai'" class="w-2 h-2 rounded-full bg-[#4d462e]"></div>
                                     </div>
                                 </div>
-                                <p class="text-[11px] text-[#7b6f52] leading-relaxed mb-3">Bayar langsung di toko saat
-                                    pengambilan. Stok berkurang setelah <strong class="text-[#4a473d]">admin
-                                        konfirmasi</strong>.</p>
-                                <div
-                                    class="flex items-start gap-2 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                                    <span
-                                        class="material-symbols-outlined text-[14px] flex-shrink-0 mt-px">schedule</span>
+                                <p class="text-[11px] text-[#7b6f52] leading-relaxed mb-3">Bayar langsung di toko saat pengambilan. Stok berkurang setelah <strong class="text-[#4a473d]">admin konfirmasi</strong>.</p>
+                                <div class="flex items-start gap-2 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                                    <span class="material-symbols-outlined text-[14px] flex-shrink-0 mt-px">schedule</span>
                                     Auto-batal jika tidak dikonfirmasi admin hingga H+1 tanggal ambil.
                                 </div>
                             </div>
@@ -708,51 +825,33 @@
                 </div>
 
                 {{-- 05 · E-KONTRAK --}}
-                <div
-                    class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
-                    <div
-                        class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
-                        <span
-                            class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">05</span>
-                        <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Perjanjian E-Kontrak
-                        </h2>
+                <div class="bg-white border border-[#e0d9c8] rounded-2xl overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-[#faf8f2] to-[#f5f3ec] border-b border-[#e0d9c8]">
+                        <span class="font-syne w-8 h-8 rounded-xl bg-[#4d462e] text-[#F2E8C6] text-[11px] font-bold flex items-center justify-center flex-shrink-0">05</span>
+                        <h2 class="font-syne font-bold text-[13px] tracking-[0.12em] uppercase">Perjanjian E-Kontrak</h2>
                     </div>
                     <div class="p-6">
-                        <div
-                            class="h-52 overflow-y-auto scrollbar-hide bg-[#faf8f2] border border-[#e0d9c8] rounded-xl p-5 text-[12px] text-[#5a584f] leading-relaxed space-y-3 mb-5">
-                            <p class="font-syne font-bold text-[11px] tracking-[0.1em] uppercase text-[#1b1c1a]">Syarat
-                                dan Ketentuan Penyewaan</p>
-                            <p><strong class="text-[#1b1c1a]">1. KEWAJIBAN PENYEWA</strong><br>Penyewa wajib menjaga
-                                barang sewaan dalam kondisi baik dan mengembalikan tepat waktu. Kerusakan akibat
-                                kelalaian penyewa menjadi tanggung jawab penyewa sepenuhnya.</p>
-                            <p><strong class="text-[#1b1c1a]">2. JAMINAN IDENTITAS</strong><br>Kartu identitas fisik
-                                penyewa akan ditahan selama masa sewa. Dikembalikan setelah semua barang kembali dalam
-                                kondisi baik.</p>
-                            <p><strong class="text-[#1b1c1a]">3. KETERLAMBATAN PENGEMBALIAN</strong><br>Keterlambatan
-                                dikenakan denda sebesar harga sewa per hari, dihitung mulai H+1 tanggal kembali.</p>
-                            <p><strong class="text-[#1b1c1a]">4. KERUSAKAN BARANG</strong><br>Kerusakan dinilai admin
-                                saat pengembalian. Penyewa wajib membayar biaya perbaikan atau penggantian.</p>
-                            <p><strong class="text-[#1b1c1a]">5. PEMBATALAN</strong><br>Midtrans: pembatalan setelah
-                                lunas dikenakan biaya admin 10%. Tunai: dapat dibatalkan sebelum konfirmasi admin tanpa
-                                biaya.</p>
-                            <p><strong class="text-[#1b1c1a]">6. FORCE MAJEURE</strong><br>Majelis Rental tidak
-                                bertanggung jawab atas gangguan layanan akibat bencana alam atau kejadian di luar
-                                kendali manajemen.</p>
+                        <div class="h-52 overflow-y-auto scrollbar-hide bg-[#faf8f2] border border-[#e0d9c8] rounded-xl p-5 text-[12px] text-[#5a584f] leading-relaxed space-y-3 mb-5">
+                            <p class="font-syne font-bold text-[11px] tracking-[0.1em] uppercase text-[#1b1c1a]">Syarat dan Ketentuan Penyewaan</p>
+                            <p><strong class="text-[#1b1c1a]">1. KEWAJIBAN PENYEWA</strong><br>Penyewa wajib menjaga barang sewaan dalam kondisi baik dan mengembalikan tepat waktu. Kerusakan akibat kelalaian penyewa menjadi tanggung jawab penyewa sepenuhnya.</p>
+                            <p><strong class="text-[#1b1c1a]">2. JAMINAN IDENTITAS</strong><br>Kartu identitas fisik penyewa akan ditahan selama masa sewa. Dikembalikan setelah semua barang kembali dalam kondisi baik.</p>
+                            <p><strong class="text-[#1b1c1a]">3. KETERLAMBATAN PENGEMBALIAN</strong><br>Keterlambatan dikenakan denda sebesar harga sewa per hari, dihitung mulai H+1 tanggal kembali.</p>
+                            <p><strong class="text-[#1b1c1a]">4. KERUSAKAN BARANG</strong><br>Kerusakan dinilai admin saat pengembalian. Penyewa wajib membayar biaya perbaikan atau penggantian.</p>
+                            <p><strong class="text-[#1b1c1a]">5. PEMBATALAN</strong><br>Midtrans: pembatalan setelah lunas dikenakan biaya admin 10%. Tunai: dapat dibatalkan sebelum konfirmasi admin tanpa biaya.</p>
+                            <p><strong class="text-[#1b1c1a]">6. FORCE MAJEURE</strong><br>Majelis Rental tidak bertanggung jawab atas gangguan layanan akibat bencana alam atau kejadian di luar kendali manajemen.</p>
                         </div>
-                        <label class="flex items-start gap-3 cursor-pointer select-none"
-                            x-on:click="setuju = !setuju">
+                        <label class="flex items-start gap-3 cursor-pointer select-none" x-on:click="setuju = !setuju">
                             <div class="flex-shrink-0 mt-0.5 w-[22px] h-[22px] border-2 rounded-lg flex items-center justify-center transition-all duration-200"
                                 :class="setuju ? 'bg-[#4d462e] border-[#4d462e]' : 'border-[#c8bfa8] hover:border-[#4d462e]/60'">
-                                <span x-show="setuju"
-                                    class="material-symbols-outlined text-[#F2E8C6] text-[14px]">check</span>
+                                <span x-show="setuju" class="material-symbols-outlined text-[#F2E8C6] text-[14px]">check</span>
                             </div>
                             <p class="text-[13px] text-[#4a473d] leading-relaxed">
-                                Saya telah membaca, memahami, dan menyetujui seluruh syarat dan ketentuan penyewaan
-                                Majelis Rental. Saya bertanggung jawab penuh atas barang yang disewa.
+                                Saya telah membaca, memahami, dan menyetujui seluruh syarat dan ketentuan penyewaan Majelis Rental. Saya bertanggung jawab penuh atas barang yang disewa.
                             </p>
                         </label>
                     </div>
                 </div>
+
             </div>{{-- /kolom kiri --}}
 
             {{-- ═══ SIDEBAR KANAN ═══ --}}
@@ -770,14 +869,11 @@
                         <div class="p-5">
                             <div class="space-y-2.5 mb-4">
                                 <template x-for="(item, id) in $store.cart.items" :key="id">
-                                    <div
-                                        class="flex justify-between items-start gap-3 pb-2.5 border-b border-[#f0ece0]">
+                                    <div class="flex justify-between items-start gap-3 pb-2.5 border-b border-[#f0ece0]">
                                         <div class="min-w-0">
-                                            <p class="font-syne font-bold text-[11px] uppercase tracking-tight text-[#1b1c1a] truncate"
-                                                x-text="item.nama"></p>
+                                            <p class="font-syne font-bold text-[11px] uppercase tracking-tight text-[#1b1c1a] truncate" x-text="item.nama"></p>
                                             <p class="text-[10px] text-[#9b947c]">
-                                                <span x-text="item.qty"></span> unit × <span
-                                                    x-text="durasi || '?'"></span> hari
+                                                <span x-text="item.qty"></span> unit × <span x-text="durasi || '?'"></span> hari
                                             </p>
                                         </div>
                                         <span class="font-semibold text-[12px] text-[#4d462e] flex-shrink-0"
@@ -804,15 +900,12 @@
                             </div>
                             <div class="h-px bg-[#e0d9c8] my-3"></div>
                             <div class="flex items-baseline justify-between mb-1">
-                                <span
-                                    class="text-[10px] font-bold tracking-[0.15em] uppercase text-[#7b6f52]">Total</span>
+                                <span class="text-[10px] font-bold tracking-[0.15em] uppercase text-[#7b6f52]">Total</span>
                                 <span class="font-syne font-extrabold text-[26px] text-[#4d462e] leading-none"
                                     x-text="durasi > 0 && !$store.cart.isEmpty ? rupiah(totalSewa) : 'Rp —'"></span>
                             </div>
-                            <p class="text-[9px] text-[#9b947c] tracking-[0.1em] uppercase mb-4">*Belum termasuk denda
-                                keterlambatan</p>
-                            <div
-                                class="flex items-center gap-2.5 bg-[#faf8f2] border border-[#e0d9c8] rounded-xl px-4 py-3">
+                            <p class="text-[9px] text-[#9b947c] tracking-[0.1em] uppercase mb-4">*Belum termasuk denda keterlambatan</p>
+                            <div class="flex items-center gap-2.5 bg-[#faf8f2] border border-[#e0d9c8] rounded-xl px-4 py-3">
                                 <span class="material-symbols-outlined text-[16px] text-[#4d462e]"
                                     x-text="metodePembayaran === 'midtrans' ? 'credit_card' : 'payments'"></span>
                                 <span class="text-[10px] font-bold tracking-[0.1em] uppercase text-[#4a473d]"
@@ -821,8 +914,7 @@
                         </div>
                     </div>
 
-                    <form id="form-checkout" action="{{ route('checkout.proses') }}" method="POST"
-                        enctype="multipart/form-data">
+                    <form id="form-checkout" action="{{ route('checkout.proses') }}" method="POST" enctype="multipart/form-data">
                         @csrf
                         <input type="hidden" id="input_tgl_ambil" name="tanggal_ambil">
                         <input type="hidden" id="input_tgl_kembali" name="tanggal_kembali">
@@ -835,23 +927,19 @@
 
                     <div x-show="submitError" x-cloak
                         class="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
-                        <span
-                            class="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0 mt-0.5">error</span>
+                        <span class="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0 mt-0.5">error</span>
                         <p class="text-[12px] text-red-600 leading-relaxed" x-text="submitError"></p>
                     </div>
 
                     <button type="button" x-on:click="submitForm()" :disabled="!bisaSubmit || loading"
                         class="w-full py-4 rounded-2xl font-syne font-extrabold text-[12px] tracking-[0.15em] uppercase border-0 transition-all duration-300"
-                        :class="bisaSubmit && !loading ?
-                            'bg-gradient-to-r from-[#2e2a1e] to-[#4d462e] text-[#F2E8C6] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#4d462e]/30 cursor-pointer' :
-                            'bg-[#e0d9c8] text-[#9b947c] cursor-not-allowed'">
+                        :class="bisaSubmit && !loading
+                            ? 'bg-gradient-to-r from-[#2e2a1e] to-[#4d462e] text-[#F2E8C6] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#4d462e]/30 cursor-pointer'
+                            : 'bg-[#e0d9c8] text-[#9b947c] cursor-not-allowed'">
                         <span x-show="loading" class="flex items-center justify-center gap-2">
                             <svg class="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                    stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                </path>
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                             Memproses...
                         </span>
@@ -860,17 +948,14 @@
                     </button>
 
                     <div class="bg-white border border-[#e0d9c8] rounded-2xl p-5">
-                        <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#9b947c] mb-4">Persyaratan
-                            Checkout</p>
+                        <p class="text-[9px] font-bold tracking-[0.2em] uppercase text-[#9b947c] mb-4">Persyaratan Checkout</p>
                         <div class="space-y-2.5">
-                            <template
-                                x-for="item in [
-                                    { label: 'Durasi sewa dipilih',     done: durasi > 0 },
-                                    { label: 'Keranjang tidak kosong',  done: $store.cart.count > 0 },
-                                    { label: 'Foto identitas diupload', done: fotoFile !== null },
-                                    { label: 'Perjanjian disetujui',    done: setuju },
-                                ]"
-                                :key="item.label">
+                            <template x-for="item in [
+                                { label: 'Durasi sewa dipilih',     done: durasi > 0 },
+                                { label: 'Keranjang tidak kosong',  done: $store.cart.count > 0 },
+                                { label: 'Foto identitas diupload', done: fotoFile !== null },
+                                { label: 'Perjanjian disetujui',    done: setuju },
+                            ]" :key="item.label">
                                 <div class="flex items-center gap-2.5 text-[11px] font-medium transition-colors duration-200"
                                     :class="item.done ? 'text-green-700' : 'text-[#9b947c]'">
                                     <div class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200"
@@ -892,11 +977,228 @@
             </div>
 
         </div>
+
+        {{-- ══════════════════════════════════════════════════════════════
+             REKOMENDASI DETAIL MODAL
+             Di-listen via custom event 'open-rekomendasi-detail'
+             ══════════════════════════════════════════════════════════════ --}}
+        <div x-show="rekModalOpen" x-cloak
+            class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5"
+            @keydown.escape.window="closeRekModal()"
+            @open-rekomendasi-detail.window="openRekModal($event.detail)">
+
+            {{-- Backdrop --}}
+            <div x-show="rekModalOpen"
+                x-transition:enter="transition ease-out duration-200"
+                x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100"
+                x-transition:leave="transition ease-in duration-150"
+                x-transition:leave-start="opacity-100"
+                x-transition:leave-end="opacity-0"
+                @click="closeRekModal()"
+                class="absolute inset-0 bg-[#1b1c1a]/65 backdrop-blur-sm"></div>
+
+            {{-- Modal --}}
+            <div x-show="rekModalOpen"
+                x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                x-transition:leave="transition ease-in duration-200"
+                x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                x-transition:leave-end="opacity-0 scale-95 translate-y-4"
+                class="rdm-wrap">
+
+                {{-- Top bar --}}
+                <div class="rdm-topbar">
+                    <div class="flex items-center gap-2.5">
+                        <div class="h-px w-5 bg-[#4d462e]"></div>
+                        <span class="font-syne text-[9px] font-bold tracking-[0.3em] uppercase text-[#7b6f52]">Detail Perlengkapan</span>
+                        <template x-if="rekItem">
+                            <span class="hidden sm:inline text-[10px] text-[#c8bfa8]">·</span>
+                        </template>
+                        <template x-if="rekItem">
+                            <span class="hidden sm:inline font-syne font-bold text-[10px] uppercase tracking-wide text-[#4d462e] truncate max-w-[200px]"
+                                x-text="rekItem.nama"></span>
+                        </template>
+                    </div>
+                    <button @click="closeRekModal()"
+                        class="w-8 h-8 flex items-center justify-center rounded-xl border border-[#e0d9c8] text-[#5a584f] hover:bg-[#4d462e] hover:text-[#F2E8C6] hover:border-[#4d462e] transition-all duration-200 shrink-0">
+                        <span class="material-symbols-outlined text-[17px]">close</span>
+                    </button>
+                </div>
+
+                {{-- Body --}}
+                <div class="rdm-body">
+
+                    {{-- LEFT: Photo panel --}}
+                    <div class="rdm-photo">
+                        <div class="rdm-stage">
+                            <template x-if="rekItem">
+                                <img :src="rekItem.foto ? '/storage/' + rekItem.foto : '/images/no-image.png'"
+                                    :alt="rekItem.nama"
+                                    class="rdm-stage-img">
+                            </template>
+
+                            {{-- Status badge --}}
+                            <template x-if="rekItem">
+                                <div class="rdm-status"
+                                    :class="rekItem.stok > 0 ? 'bg-[#4d462e] text-[#F2E8C6]' : 'bg-red-600 text-white'"
+                                    x-text="rekItem.stok > 0 ? 'Tersedia' : 'Habis'">
+                                </div>
+                            </template>
+                        </div>
+
+                        {{-- Weather context badge --}}
+                        <template x-if="cuacaContextForModal">
+                            <div class="px-4 py-3 bg-[#e4dfce]">
+                                <div class="flex items-center gap-2 rounded-xl px-3 py-2 text-[10px] font-semibold border"
+                                    :class="{
+                                        'bg-red-50 border-red-200 text-red-700': cuacaContextForModal.level === 'danger',
+                                        'bg-amber-50 border-amber-200 text-amber-700': cuacaContextForModal.level === 'warning',
+                                        'bg-green-50 border-green-200 text-green-700': cuacaContextForModal.level === 'good',
+                                        'bg-[#f5f3ed] border-[#e0d9c8] text-[#5a584f]': cuacaContextForModal.level === 'neutral',
+                                    }">
+                                    <span class="material-symbols-outlined text-[14px] flex-shrink-0">partly_cloudy_day</span>
+                                    <span>Direkomendasikan untuk cuaca: <strong x-text="cuacaContextForModal.deskripsi"></strong></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    {{-- RIGHT: Info panel --}}
+                    <div class="rdm-info">
+                        <div class="rdm-info-body">
+                            <template x-if="rekItem">
+                                <div class="space-y-4">
+
+                                    {{-- Tags/Kategori badge --}}
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#4d462e]/10 border border-[#4d462e]/20 text-[10px] font-bold text-[#4d462e] tracking-wide uppercase">
+                                            <span class="material-symbols-outlined" style="font-size:11px">label</span>
+                                            <span x-text="rekItem.kategori || 'Perlengkapan'"></span>
+                                        </span>
+                                        <span :class="rekItem.stok > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-600'"
+                                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold tracking-wide uppercase">
+                                            <span class="material-symbols-outlined" style="font-size:11px">inventory_2</span>
+                                            <span x-text="rekItem.stok > 0 ? 'Stok: ' + rekItem.stok + ' unit' : 'Stok Habis'"></span>
+                                        </span>
+                                        <template x-if="rekItem.stok > 0 && rekItem.stok <= 3">
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700 tracking-wide uppercase">
+                                                <span class="material-symbols-outlined" style="font-size:11px">warning</span>
+                                                Menipis!
+                                            </span>
+                                        </template>
+                                    </div>
+
+                                    {{-- Name --}}
+                                    <h2 class="font-syne font-extrabold text-[18px] sm:text-[22px] uppercase tracking-tight leading-tight text-[#1b1c1a]"
+                                        x-text="rekItem.nama"></h2>
+
+                                    {{-- Price --}}
+                                    <div class="flex items-end gap-2 pb-4 border-b border-[#e0d9c8]">
+                                        <span class="font-syne font-extrabold text-[24px] sm:text-[28px] text-[#4d462e] leading-none"
+                                            x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(rekItem.harga)"></span>
+                                        <span class="text-sm text-[#7b6f52] mb-0.5">/hari</span>
+                                        <template x-if="durasi > 0">
+                                            <div class="ml-auto flex flex-col items-end">
+                                                <span class="text-[9px] text-[#9b947c] uppercase tracking-wider">Total <span x-text="durasi"></span> hari</span>
+                                                <span class="font-syne font-bold text-[15px] text-[#2e2a1e]"
+                                                    x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(rekItem.harga * durasi)"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+
+                                    {{-- Mengapa direkomendasikan --}}
+                                    <template x-if="cuacaContextForModal">
+                                        <div class="rounded-xl overflow-hidden border border-[#e0d9c8]">
+                                            <div class="px-4 py-2.5 bg-[#faf8f2] border-b border-[#e0d9c8] flex items-center gap-2">
+                                                <span class="material-symbols-outlined text-[14px] text-[#4d462e]">recommend</span>
+                                                <span class="font-syne font-bold text-[10px] tracking-[0.15em] uppercase text-[#4d462e]">Kenapa Direkomendasikan?</span>
+                                            </div>
+                                            <div class="px-4 py-3 text-[12px] text-[#5a584f] leading-relaxed" x-text="cuacaContextForModal.pesan"></div>
+                                        </div>
+                                    </template>
+
+                                    {{-- Durasi context --}}
+                                    <template x-if="durasi > 0">
+                                        <div class="flex items-center gap-3 px-4 py-3 bg-[#4d462e]/5 border border-[#4d462e]/15 rounded-xl">
+                                            <span class="material-symbols-outlined text-[18px] text-[#4d462e]">calendar_today</span>
+                                            <div>
+                                                <p class="text-[10px] text-[#7b6f52]">Durasi sewa Anda</p>
+                                                <p class="font-syne font-bold text-[13px] text-[#1b1c1a]">
+                                                    <span x-text="durasi"></span> hari ·
+                                                    <span x-text="'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(rekItem.harga * durasi)"></span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                </div>
+                            </template>
+                        </div>
+
+                        {{-- Footer actions --}}
+                        <div class="rdm-info-footer">
+                            <template x-if="rekItem && rekItem.stok > 0">
+                                <div x-data="{ busy: false, done: false }" class="flex flex-col sm:flex-row gap-2">
+                                    {{-- Sewa langsung --}}
+                                    <a :href="'/keranjang/sewa-langsung/' + rekItem.id"
+                                        class="flex-1 flex items-center justify-center gap-2 py-3 bg-[#2e2a1e] text-white rounded-xl font-syne font-bold text-[10px] tracking-[0.12em] uppercase hover:bg-[#4d462e] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200">
+                                        <span class="material-symbols-outlined" style="font-size:14px">bolt</span>
+                                        Sewa Sekarang
+                                    </a>
+                                    {{-- Tambah ke keranjang --}}
+                                    <button type="button"
+                                        @click="(async () => {
+                                            if (busy || !rekItem?.id) return;
+                                            busy = true;
+                                            try {
+                                                const ok = await $store.cart.tambahItem(rekItem.id);
+                                                if (ok) {
+                                                    done = true;
+                                                    setTimeout(() => { done = false; closeRekModal(); }, 1800);
+                                                }
+                                            } finally {
+                                                busy = false;
+                                            }
+                                        })()"
+                                        :class="done
+                                            ? 'border-green-500 bg-green-50 text-green-700'
+                                            : 'border-[#c8bfa8] text-[#2e2a1e] hover:bg-[#2e2a1e] hover:text-white hover:border-[#2e2a1e]'"
+                                        class="flex-1 flex items-center justify-center gap-2 py-3 border-[1.5px] rounded-xl font-syne font-bold text-[10px] tracking-[0.12em] uppercase transition-all duration-200 hover:-translate-y-0.5">
+                                        <template x-if="busy">
+                                            <span class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                                        </template>
+                                        <template x-if="!busy && done">
+                                            <span class="material-symbols-outlined" style="font-size:14px">check_circle</span>
+                                        </template>
+                                        <template x-if="!busy && !done">
+                                            <span class="material-symbols-outlined" style="font-size:14px">add_shopping_cart</span>
+                                        </template>
+                                        <span x-text="busy ? 'Menambahkan...' : done ? 'Ditambahkan! Menutup...' : 'Tambah ke Pesanan'"></span>
+                                    </button>
+                                </div>
+            </template>
+                            <template x-if="rekItem && rekItem.stok <= 0">
+                                <div class="flex items-center justify-center gap-2 py-3 bg-[#f0ece0] text-[#9b947c] border border-[#e0d9c8] rounded-xl font-syne font-bold text-[10px] tracking-[0.12em] uppercase cursor-not-allowed">
+                                    <span class="material-symbols-outlined" style="font-size:14px">remove_shopping_cart</span>
+                                    Stok Habis
+                                </div>
+                            </template>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        {{-- END REKOMENDASI DETAIL MODAL --}}
+
     </div>
 
     @include('user.components.footer')
 
-    {{-- Leaflet JS — map picker --}}
+    {{-- Leaflet JS --}}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </body>
 
@@ -907,42 +1209,30 @@
         //  CUACA WIDGET — Map Picker + Free Search (Nominatim)
         // =========================================================================
         Alpine.data('cuacaWidget', () => ({
-
-            // ── Search ────────────────────────────────────────────────────────────
             searchQuery: '',
             hasilSearch: [],
             loadingSearch: false,
             dropdownTerbuka: false,
-
-            // ── Lokasi terpilih ───────────────────────────────────────────────────
-            lokasiTerpilih: null, // { nama_pendek, lat, lon }
-
-            // ── Cuaca ─────────────────────────────────────────────────────────────
+            lokasiTerpilih: null,
             cuaca: null,
             rekomendasi: [],
             namaLokasi: '',
             koordinatLabel: '',
             loadingCuaca: false,
             errorCuaca: null,
-
-            // ── Map ───────────────────────────────────────────────────────────────
             _map: null,
             _marker: null,
 
-            // ── Init ──────────────────────────────────────────────────────────────
             init() {
                 this.$nextTick(() => this.initMap());
-
-                // Tutup dropdown saat klik luar
                 document.addEventListener('click', (e) => {
                     if (!this.$el.contains(e.target)) this.dropdownTerbuka = false;
                 });
             },
 
-            // ── Ambil tglAmbil dari parent checkout ───────────────────────────────
             get tglAmbilParent() {
                 try {
-                    const parentEl = this.$el.closest('[x-data="checkout"]');
+                    const parentEl = this.$el.closest('[x-data="checkoutPage"]');
                     if (parentEl?._x_dataStack) {
                         for (const data of parentEl._x_dataStack) {
                             if (data.tglAmbil !== undefined) return data.tglAmbil;
@@ -952,26 +1242,15 @@
                 return null;
             },
 
-            // ── Map Leaflet ───────────────────────────────────────────────────────
             initMap() {
                 if (this._map) return;
-
-                // Pusat default: Indonesia
-                this._map = L.map('cuaca-map', {
-                    zoomControl: true
-                }).setView([-2.5, 118], 5);
-
+                this._map = L.map('cuaca-map', { zoomControl: true }).setView([-2.5, 118], 5);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
                     maxZoom: 18,
                 }).addTo(this._map);
-
-                // Klik di peta → set marker & reverse geocode
                 this._map.on('click', (e) => {
-                    const {
-                        lat,
-                        lng
-                    } = e.latlng;
+                    const { lat, lng } = e.latlng;
                     this.setMarkerDanReverseGeocode(lat, lng);
                 });
             },
@@ -980,14 +1259,9 @@
                 if (this._marker) {
                     this._marker.setLatLng([lat, lon]);
                 } else {
-                    this._marker = L.marker([lat, lon], {
-                        draggable: true
-                    }).addTo(this._map);
+                    this._marker = L.marker([lat, lon], { draggable: true }).addTo(this._map);
                     this._marker.on('dragend', (e) => {
-                        const {
-                            lat,
-                            lng
-                        } = e.target.getLatLng();
+                        const { lat, lng } = e.target.getLatLng();
                         this.setMarkerDanReverseGeocode(lat, lng);
                     });
                 }
@@ -997,58 +1271,36 @@
             async setMarkerDanReverseGeocode(lat, lon) {
                 this.setMarker(lat, lon);
                 this.loadingSearch = true;
-
                 try {
                     const res = await fetch(`/api/lokasi/reverse?lat=${lat}&lon=${lon}`, {
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector(
-                                'meta[name="csrf-token"]').content
-                        }
+                        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
                     });
                     const data = await res.json();
-
                     this.lokasiTerpilih = {
                         nama_pendek: data.nama_pendek ?? data.nama ?? 'Titik terpilih',
                         nama: data.nama ?? '',
-                        lat,
-                        lon,
+                        lat, lon,
                     };
                     this.searchQuery = this.lokasiTerpilih.nama_pendek;
                     this.hasilSearch = [];
                     this.dropdownTerbuka = false;
-
                     this.fetchCuaca();
                 } catch (_) {
-                    // Fallback tanpa nama
-                    this.lokasiTerpilih = {
-                        nama_pendek: `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
-                        lat,
-                        lon
-                    };
+                    this.lokasiTerpilih = { nama_pendek: `${lat.toFixed(5)}, ${lon.toFixed(5)}`, lat, lon };
                     this.fetchCuaca();
                 } finally {
                     this.loadingSearch = false;
                 }
             },
 
-            // ── Cari Lokasi via Nominatim ─────────────────────────────────────────
             async cariLokasi() {
                 const q = this.searchQuery.trim();
-                if (q.length < 3) {
-                    this.hasilSearch = [];
-                    this.dropdownTerbuka = false;
-                    return;
-                }
-
+                if (q.length < 3) { this.hasilSearch = []; this.dropdownTerbuka = false; return; }
                 this.loadingSearch = true;
                 this.dropdownTerbuka = true;
-
                 try {
                     const res = await fetch(`/api/lokasi/cari?q=${encodeURIComponent(q)}`, {
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector(
-                                'meta[name="csrf-token"]').content
-                        }
+                        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
                     });
                     const data = await res.json();
                     this.hasilSearch = data.hasil ?? [];
@@ -1059,44 +1311,29 @@
                 }
             },
 
-            // ── Pilih dari dropdown ───────────────────────────────────────────────
             pilihLokasi(item) {
                 this.lokasiTerpilih = item;
                 this.searchQuery = item.nama_pendek;
                 this.hasilSearch = [];
                 this.dropdownTerbuka = false;
-
                 this.setMarker(item.lat, item.lon);
                 this.fetchCuaca();
             },
 
-            tutupDropdown() {
-                this.dropdownTerbuka = false;
-            },
+            tutupDropdown() { this.dropdownTerbuka = false; },
 
-            // ── Gunakan GPS saat ini ──────────────────────────────────────────────
             gunakanGPSSekarang() {
-                if (!navigator.geolocation) {
-                    alert('Browser Anda tidak mendukung geolokasi.');
-                    return;
-                }
+                if (!navigator.geolocation) { alert('Browser Anda tidak mendukung geolokasi.'); return; }
                 this.loadingSearch = true;
                 navigator.geolocation.getCurrentPosition(
                     (pos) => {
-                        const {
-                            latitude: lat,
-                            longitude: lon
-                        } = pos.coords;
+                        const { latitude: lat, longitude: lon } = pos.coords;
                         this.setMarkerDanReverseGeocode(lat, lon);
                     },
-                    () => {
-                        this.loadingSearch = false;
-                        alert('Gagal mendapatkan lokasi. Pastikan izin lokasi diaktifkan.');
-                    }
+                    () => { this.loadingSearch = false; alert('Gagal mendapatkan lokasi. Pastikan izin lokasi diaktifkan.'); }
                 );
             },
 
-            // ── Reset ─────────────────────────────────────────────────────────────
             resetLokasi() {
                 this.lokasiTerpilih = null;
                 this.searchQuery = '';
@@ -1105,7 +1342,6 @@
                 this.cuaca = null;
                 this.rekomendasi = [];
                 this.errorCuaca = null;
-
                 if (this._marker) {
                     this._map.removeLayer(this._marker);
                     this._marker = null;
@@ -1113,15 +1349,12 @@
                 }
             },
 
-            // ── Fetch Cuaca dari OWM ──────────────────────────────────────────────
             async fetchCuaca() {
                 if (!this.lokasiTerpilih || !this.tglAmbilParent) return;
-
                 this.loadingCuaca = true;
                 this.errorCuaca = null;
                 this.cuaca = null;
                 this.rekomendasi = [];
-
                 try {
                     const params = new URLSearchParams({
                         lat: this.lokasiTerpilih.lat,
@@ -1129,27 +1362,18 @@
                         nama_lokasi: this.lokasiTerpilih.nama_pendek,
                         tanggal_ambil: this.tglAmbilParent,
                     });
-
                     const res = await fetch(`/api/cuaca?${params}`, {
                         headers: {
                             'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector(
-                                'meta[name="csrf-token"]').content,
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         }
                     });
                     const data = await res.json();
-
-                    if (!res.ok) {
-                        this.errorCuaca = data.message || 'Gagal mengambil data cuaca.';
-                        return;
-                    }
-
+                    if (!res.ok) { this.errorCuaca = data.message || 'Gagal mengambil data cuaca.'; return; }
                     this.cuaca = data.cuaca;
                     this.rekomendasi = data.rekomendasi ?? [];
                     this.namaLokasi = data.lokasi;
-                    this.koordinatLabel =
-                        `${this.lokasiTerpilih.lat.toFixed(4)}°, ${this.lokasiTerpilih.lon.toFixed(4)}°`;
-
+                    this.koordinatLabel = `${this.lokasiTerpilih.lat.toFixed(4)}°, ${this.lokasiTerpilih.lon.toFixed(4)}°`;
                 } catch (_) {
                     this.errorCuaca = 'Terjadi kesalahan jaringan. Periksa koneksi Anda.';
                 } finally {
@@ -1159,10 +1383,13 @@
         }));
 
         // =========================================================================
-        //  CHECKOUT COMPONENT
+        //  CHECKOUT PAGE — root component (menggantikan 'checkout')
+        //  Tambahan: rekModalOpen, rekItem, openRekModal, closeRekModal
+        //  + cuacaContextForModal untuk menampilkan pesan cuaca di modal
         // =========================================================================
-        Alpine.data('checkout', () => ({
+        Alpine.data('checkoutPage', () => ({
 
+            // ── Checkout state ────────────────────────────────────────────────────
             tglAmbil: '',
             tglKembali: '',
             jenisIdentitas: 'KTP',
@@ -1173,7 +1400,40 @@
             loading: false,
             submitError: null,
 
-            // Saat tanggal berubah, trigger refresh cuaca di widget anak
+            // ── Rekomendasi Modal state ───────────────────────────────────────────
+            rekModalOpen: false,
+            rekItem: null,           // item rekomendasi yang sedang dilihat
+            cuacaContextForModal: null, // cuaca context untuk ditampilkan di modal
+
+            // ── Modal methods ─────────────────────────────────────────────────────
+            openRekModal(item) {
+                this.rekItem = item;
+                // Ambil cuaca dari cuacaWidget untuk ditampilkan sebagai konteks
+                try {
+                    const cuacaEl = this.$el.querySelector('[x-data="cuacaWidget"]');
+                    if (cuacaEl?._x_dataStack) {
+                        for (const data of cuacaEl._x_dataStack) {
+                            if (data.cuaca !== undefined) {
+                                this.cuacaContextForModal = data.cuaca;
+                                break;
+                            }
+                        }
+                    }
+                } catch (_) {
+                    this.cuacaContextForModal = null;
+                }
+                this.rekModalOpen = true;
+                document.body.style.overflow = 'hidden';
+            },
+
+            closeRekModal() {
+                this.rekModalOpen = false;
+                this.rekItem = null;
+                this.cuacaContextForModal = null;
+                document.body.style.overflow = '';
+            },
+
+            // ── Checkout helpers ──────────────────────────────────────────────────
             onDateChange() {
                 const cuacaEl = this.$el.querySelector('[x-data="cuacaWidget"]');
                 if (cuacaEl?._x_dataStack) {
@@ -1187,14 +1447,12 @@
             },
 
             get subtotalPerHari() {
-                return Object.values(Alpine.store('cart').items).reduce((s, i) => s + i.harga *
-                    i.qty, 0);
+                return Object.values(Alpine.store('cart').items).reduce((s, i) => s + i.harga * i.qty, 0);
             },
 
             get durasi() {
                 if (!this.tglAmbil || !this.tglKembali) return 0;
-                const d = Math.round((new Date(this.tglKembali) - new Date(this.tglAmbil)) /
-                    86400000);
+                const d = Math.round((new Date(this.tglKembali) - new Date(this.tglAmbil)) / 86400000);
                 return d > 0 ? d : 0;
             },
 
@@ -1210,19 +1468,18 @@
                     this.setuju;
             },
 
-            async hapusItem(id) {
-                await Alpine.store('cart').hapus(id);
-            },
+            async hapusItem(id) { await Alpine.store('cart').hapus(id); },
+
             async tambahQty(id) {
                 const item = Alpine.store('cart').items[id];
                 if (!item) return;
                 if (item.qty < item.stok) {
                     await Alpine.store('cart').update(id, item.qty + 1);
                 } else {
-                    Alpine.store('toast').flash(
-                        `Stok "${item.nama}" sudah maksimal (${item.stok} unit).`, 'error');
+                    Alpine.store('toast').flash(`Stok "${item.nama}" sudah maksimal (${item.stok} unit).`, 'error');
                 }
             },
+
             async kurangQty(id) {
                 const item = Alpine.store('cart').items[id];
                 if (!item) return;
@@ -1238,18 +1495,12 @@
                 if (!file) return;
                 this.fotoFile = file;
                 const r = new FileReader();
-                r.onload = ev => {
-                    this.fotoPreview = ev.target.result;
-                };
+                r.onload = ev => { this.fotoPreview = ev.target.result; };
                 r.readAsDataURL(file);
             },
 
-            rupiah(n) {
-                return 'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(n);
-            },
-            today() {
-                return new Date().toISOString().split('T')[0];
-            },
+            rupiah(n) { return 'Rp\u00a0' + new Intl.NumberFormat('id-ID').format(n); },
+            today() { return new Date().toISOString().split('T')[0]; },
 
             syncHidden() {
                 document.getElementById('input_tgl_ambil').value = this.tglAmbil;
@@ -1278,45 +1529,30 @@
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest',
                             'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector(
-                                'meta[name="csrf-token"]').content,
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         },
                         body: formData,
                     });
                     const data = await response.json();
 
                     if (!response.ok) {
-                        this.submitError = data.errors ?
-                            Object.values(data.errors).flat().join(' • ') :
-                            (data.message || 'Terjadi kesalahan. Silakan coba lagi.');
+                        this.submitError = data.errors
+                            ? Object.values(data.errors).flat().join(' • ')
+                            : (data.message || 'Terjadi kesalahan. Silakan coba lagi.');
                         this.loading = false;
                         return;
                     }
 
                     window.snap.pay(data.snap_token, {
-                        onSuccess: (_) => {
-                            this.loading = false;
-                            window.location.href = data.redirect_url;
-                        },
-                        onPending: (_) => {
-                            this.loading = false;
-                            window.location.href = data.redirect_url;
-                        },
-                        onError: (_) => {
-                            this.loading = false;
-                            this.submitError =
-                                'Pembayaran gagal. Silakan coba metode lain.';
-                        },
-                        onClose: () => {
-                            this.loading = false;
-                            window.location.href = data.redirect_url;
-                        },
+                        onSuccess: (_) => { this.loading = false; window.location.href = data.redirect_url; },
+                        onPending: (_) => { this.loading = false; window.location.href = data.redirect_url; },
+                        onError: (_) => { this.loading = false; this.submitError = 'Pembayaran gagal. Silakan coba metode lain.'; },
+                        onClose: () => { this.loading = false; window.location.href = data.redirect_url; },
                     });
 
                 } catch (err) {
                     this.loading = false;
-                    this.submitError =
-                        'Terjadi kesalahan jaringan. Periksa koneksi Anda dan coba lagi.';
+                    this.submitError = 'Terjadi kesalahan jaringan. Periksa koneksi Anda dan coba lagi.';
                 }
             },
         }));
