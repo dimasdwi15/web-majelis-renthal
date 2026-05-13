@@ -5,7 +5,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\AuthController;
 use App\Http\Controllers\API\BarangController;
 use App\Http\Controllers\API\ProfileController;
-use App\Http\Controllers\API\ImageRecommendationController; 
+use App\Http\Controllers\API\ImageRecommendationController;
+use App\Http\Controllers\API\ChatController;
 
 // ─────────────────────────────────────────────────────────────────
 // Cuaca & Lokasi (public)
@@ -25,11 +26,22 @@ Route::prefix('barang')->group(function () {
 });
 
 // ─────────────────────────────────────────────────────────────────
-// AI Image Recommendation (public — guest boleh pakai)
-// POST /api/recommendation/image  → upload gambar, dapat rekomendasi
+// AI Image Recommendation (public)
 // ─────────────────────────────────────────────────────────────────
 Route::prefix('recommendation')->group(function () {
     Route::post('/image', [ImageRecommendationController::class, 'analyze']);
+});
+
+// ─────────────────────────────────────────────────────────────────
+// AI Chat Assistant (public — guest & user login bisa pakai)
+// POST   /api/chat          → kirim pesan
+// GET    /api/chat/history  → riwayat chat (butuh session_id atau token)
+// DELETE /api/chat/clear    → hapus riwayat
+// ─────────────────────────────────────────────────────────────────
+Route::prefix('chat')->group(function () {
+    Route::post('/',        [ChatController::class, 'send']);
+    Route::get('/history',  [ChatController::class, 'history']);
+    Route::delete('/clear', [ChatController::class, 'clear']);
 });
 
 // ─────────────────────────────────────────────────────────────────
