@@ -24,6 +24,7 @@ class ChatController extends Controller
             'history'    => 'nullable|array|max:20',
             'history.*.role'    => 'required_with:history|in:user,assistant',
             'history.*.content' => 'required_with:history|string|max:2000',
+            'attached_product_id' => 'nullable|exists:barang,id',
         ]);
 
         $message   = strip_tags(trim($validated['message']));
@@ -42,13 +43,13 @@ class ChatController extends Controller
         RateLimiter::hit($rateLimitKey, 60);
 
         // 3. Ambil riwayat dari request (atau dari DB jika tidak ada)
-        $history = $validated['history'] ?? $this->getRecentHistory($sessionId, $userId);
+        $history = $validated['history'] ?? $this->getRecentHistory($userId, $sessionId);
 
         // 4. Panggil AI
         $result = $this->groqService->chat($message, $history);
 
         // 5. Simpan ke database
-        $this->saveHistory($userId, $sessionId, $message, $result);
+        $this->saveHistory($userId, $sessionId, $message, $result, $validated['attached_product_id'] ?? null);
 
         // 6. Response
         return response()->json([
@@ -74,12 +75,27 @@ class ChatController extends Controller
         }
 
         $query = ChatHistory::query()
+            ->with(['attachedProduct.fotoUtama'])
             ->when($userId, fn($q) => $q->where('user_id', $userId))
             ->when(!$userId && $sessionId, fn($q) => $q->where('session_id', $sessionId))
             ->orderBy('created_at', 'asc')
             ->limit(100);
 
-        $messages = $query->get(['role', 'message', 'need_admin', 'whatsapp_url', 'created_at']);
+        $messages = $query->get(['role', 'message', 'need_admin', 'whatsapp_url', 'created_at', 'attached_product_id']);
+
+        $messages->transform(function ($item) {
+            $data = $item->toArray();
+            if ($item->attachedProduct) {
+                $fotoUrl = $item->attachedProduct->fotoUtama ? url('storage/' . $item->attachedProduct->fotoUtama->path_foto) : null;
+                $data['attached_product'] = [
+                    'id' => $item->attachedProduct->id,
+                    'nama' => $item->attachedProduct->nama,
+                    'harga_per_hari' => $item->attachedProduct->harga_per_hari,
+                    'image_url' => $fotoUrl,
+                ];
+            }
+            return $data;
+        });
 
         return response()->json([
             'success' => true,
@@ -122,7 +138,7 @@ class ChatController extends Controller
             ->toArray();
     }
 
-    private function saveHistory(?int $userId, string $sessionId, string $message, array $result): void
+    private function saveHistory(?int $userId, string $sessionId, string $message, array $result, ?int $attachedProductId = null): void
     {
         $base = [
             'user_id'    => $userId,
@@ -136,6 +152,7 @@ class ChatController extends Controller
             'message'      => $message,
             'need_admin'   => false,
             'whatsapp_url' => null,
+            'attached_product_id' => $attachedProductId,
         ]));
 
         ChatHistory::create(array_merge($base, [

@@ -16,6 +16,7 @@ class ChatHistory extends Model
         'whatsapp_url',
         'tokens_used',
         'model',
+        'attached_product_id',
     ];
 
     protected $casts = [
@@ -26,5 +27,10 @@ class ChatHistory extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function attachedProduct(): BelongsTo
+    {
+        return $this->belongsTo(Barang::class, 'attached_product_id');
     }
 }

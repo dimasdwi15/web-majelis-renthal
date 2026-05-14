@@ -10,6 +10,8 @@ use App\Repositories\BarangRepository;
 use App\Repositories\Contracts\BarangRepositoryInterface;
 use App\Services\AI\GroqVisionService;
 use App\Services\Recommendation\ImageRecommendationService;
+use App\Models\Barang;
+use App\Observers\BarangObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -37,6 +39,9 @@ class AppServiceProvider extends ServiceProvider
         if (str_starts_with(config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
+
+        // Observer: invalidasi cache konteks katalog AI saat data barang berubah
+        Barang::observe(BarangObserver::class);
 
         FilamentAsset::register([
             Css::make('custom', asset('css/custom.css')),
