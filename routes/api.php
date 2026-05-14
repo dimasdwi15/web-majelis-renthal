@@ -7,6 +7,7 @@ use App\Http\Controllers\API\BarangController;
 use App\Http\Controllers\API\ProfileController;
 use App\Http\Controllers\API\ImageRecommendationController;
 use App\Http\Controllers\API\ChatController;
+use App\Http\Controllers\API\CheckoutController;  // ← TAMBAHAN
 
 // ─────────────────────────────────────────────────────────────────
 // Cuaca & Lokasi (public)
@@ -34,9 +35,6 @@ Route::prefix('recommendation')->group(function () {
 
 // ─────────────────────────────────────────────────────────────────
 // AI Chat Assistant (public — guest & user login bisa pakai)
-// POST   /api/chat          → kirim pesan
-// GET    /api/chat/history  → riwayat chat (butuh session_id atau token)
-// DELETE /api/chat/clear    → hapus riwayat
 // ─────────────────────────────────────────────────────────────────
 Route::prefix('chat')->group(function () {
     Route::post('/',        [ChatController::class, 'send']);
@@ -75,5 +73,18 @@ Route::middleware('auth:sanctum')->group(function () {
     // AI Recommendation — riwayat (hanya user login)
     Route::prefix('recommendation')->group(function () {
         Route::get('/history', [ImageRecommendationController::class, 'history']);
+    });
+
+    // ── Checkout ─────────────────────────────────────────────────────────────
+    // POST   /api/checkout/validasi-identitas  → validasi foto identitas (AI)
+    // POST   /api/checkout                     → submit checkout + simpan order
+    // GET    /api/checkout/history             → riwayat transaksi user
+    // GET    /api/checkout/{id}                → detail transaksi
+    // ─────────────────────────────────────────────────────────────────────────
+    Route::prefix('checkout')->group(function () {
+        Route::post('/validasi-identitas', [CheckoutController::class, 'validasiIdentitas']);
+        Route::post('/',                   [CheckoutController::class, 'store']);
+        Route::get('/history',             [CheckoutController::class, 'history']);
+        Route::get('/{id}',                [CheckoutController::class, 'show']);
     });
 });
