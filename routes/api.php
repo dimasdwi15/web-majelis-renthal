@@ -3,11 +3,12 @@
 use App\Http\Controllers\CuacaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\AuthController;
+use App\Http\Controllers\API\Auth\PasswordResetController;   // ← TAMBAHAN
 use App\Http\Controllers\API\BarangController;
 use App\Http\Controllers\API\ProfileController;
 use App\Http\Controllers\API\ImageRecommendationController;
 use App\Http\Controllers\API\ChatController;
-use App\Http\Controllers\API\CheckoutController;  // ← TAMBAHAN
+use App\Http\Controllers\API\CheckoutController;
 
 // ─────────────────────────────────────────────────────────────────
 // Cuaca & Lokasi (public)
@@ -50,6 +51,15 @@ Route::prefix('auth')->group(function () {
     Route::post('login',        [AuthController::class, 'login']);
     Route::post('google',       [AuthController::class, 'googleAuth']);
     Route::post('set-password', [AuthController::class, 'setPassword']);
+
+    // ── Reset Password (3 langkah) ────────────────────────────────────────
+    // 1. POST /api/auth/forgot-password      → kirim OTP ke email
+    // 2. POST /api/auth/verify-reset-otp     → verifikasi OTP, dapatkan reset_token
+    // 3. POST /api/auth/reset-password       → buat password baru pakai reset_token
+    // ─────────────────────────────────────────────────────────────────────
+    Route::post('forgot-password',  [PasswordResetController::class, 'forgotPassword']);
+    Route::post('verify-reset-otp', [PasswordResetController::class, 'verifyResetOtp']);
+    Route::post('reset-password',   [PasswordResetController::class, 'resetPassword']);
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -76,11 +86,6 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ── Checkout ─────────────────────────────────────────────────────────────
-    // POST   /api/checkout/validasi-identitas  → validasi foto identitas (AI)
-    // POST   /api/checkout                     → submit checkout + simpan order
-    // GET    /api/checkout/history             → riwayat transaksi user
-    // GET    /api/checkout/{id}                → detail transaksi
-    // ─────────────────────────────────────────────────────────────────────────
     Route::prefix('checkout')->group(function () {
         Route::post('/validasi-identitas', [CheckoutController::class, 'validasiIdentitas']);
         Route::post('/',                   [CheckoutController::class, 'store']);
