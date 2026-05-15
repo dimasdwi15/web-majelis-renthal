@@ -48,7 +48,9 @@ class WeatherRecommendationService
         }
 
         // Query barang yang memiliki salah satu tag tersebut
-        $barang = Barang::with(['fotoUtama', 'tags'])
+        // Gunakan with('fotos') karena tabel barang_foto tidak punya is_primary,
+        // foto utama = foto pertama berdasarkan id (urutan insert)
+        $barang = Barang::with(['fotos', 'tags'])
             ->tersedia() // scope: status=aktif AND stok>0
             ->whereHas('tags', fn($q) => $q->whereIn('tags.id', $tagIds))
             ->withCount([
@@ -63,10 +65,10 @@ class WeatherRecommendationService
         return $barang->map(fn(Barang $b) => [
             'id'       => $b->id,
             'nama'     => $b->nama,
-            'kategori' => $b->tags->pluck('label')->join(', '), // tampilkan tag, bukan kategori
+            'kategori' => $b->tags->pluck('label')->join(', '),
             'harga'    => (float) $b->harga_per_hari,
             'stok'     => $b->stok,
-            'foto'     => $b->fotoUtama?->path_foto,
+            'foto'     => $b->fotoUtama ? url('storage/' . ltrim($b->fotoUtama->path_foto, '/')) : null,
         ]);
     }
 

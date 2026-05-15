@@ -92,4 +92,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/history',             [CheckoutController::class, 'history']);
         Route::get('/{id}',                [CheckoutController::class, 'show']);
     });
+
+    // ── Cuaca & Lokasi (publik, tidak perlu auth) ──────────────────────────────
+    Route::prefix('lokasi')->group(function () {
+        // GET /api/lokasi/cari?q=Semeru
+        Route::get('cari',    [CuacaController::class, 'cariLokasi']);
+
+        // GET /api/lokasi/reverse?lat=-8.06&lon=112.92
+        Route::get('reverse', [CuacaController::class, 'reverseLokasi']);
+    });
+
+    // GET /api/cuaca?lat=...&lon=...&tanggal_ambil=2026-05-20&nama_lokasi=Gunung+Semeru
+    Route::get('cuaca', [CuacaController::class, 'cek']);
 });

@@ -538,7 +538,7 @@
                                             {{-- Foto --}}
                                             <div class="relative aspect-square bg-[#f5f3ed] overflow-hidden cursor-pointer"
                                                 @click="$dispatch('open-rekomendasi-detail', item)">
-                                                <img :src="item.foto ? '/storage/' + item.foto : '/images/no-image.png'"
+                                                <img :src="item.foto ? item.foto : '/images/no-image.png'"
                                                     :alt="item.nama"
                                                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
                                                 {{-- overlay hint --}}
@@ -1034,7 +1034,7 @@
                     <div class="rdm-photo">
                         <div class="rdm-stage">
                             <template x-if="rekItem">
-                                <img :src="rekItem.foto ? '/storage/' + rekItem.foto : '/images/no-image.png'"
+                                <img :src="rekItem.foto ? rekItem.foto : '/images/no-image.png'"
                                     :alt="rekItem.nama"
                                     class="rdm-stage-img">
                             </template>
