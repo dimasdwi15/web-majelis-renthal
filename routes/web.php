@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\KatalogController;
 use App\Http\Controllers\KeranjangController;
 use App\Http\Controllers\CheckoutController;
-use App\Http\Controllers\MidtransCallbackController;
+use App\Http\Controllers\MidtransCallbackController; // Controller web (bukan API)
 
 use App\Http\Controllers\User\DashboardController;
 use App\Http\Controllers\User\PesananController;
@@ -43,7 +43,6 @@ Route::get('/tentang-kami', fn() => view('user.pages.about'))->name('about');
 // Katalog
 Route::get('/katalog', [KatalogController::class, 'index'])->name('katalog');
 
-// Keranjang — session-based, tidak perlu login
 // Keranjang — session-based, tidak perlu login
 Route::prefix('keranjang')->name('keranjang.')->group(function () {
 
@@ -109,7 +108,24 @@ Route::middleware(['auth', 'verified'])->prefix('akun')->name('user.')->group(fu
 Route::get('/pesanan/{transaksi}/struk', [PesananController::class, 'struk'])
     ->name('user.pesanan.struk');
 
-// Midtrans webhook callback (no CSRF needed — excluded in bootstrap/app.php)
+// ─────────────────────────────────────────────────────────────────────────────
+// Midtrans webhook — untuk web/Filament (COD, sewa web biasa)
+// Dikecualikan dari CSRF di bootstrap/app.php
+//
+// PENTING: Ini BERBEDA dengan /api/midtrans/callback yang dipakai Flutter.
+// URL ini untuk transaksi yang dibuat lewat web browser (bukan Flutter).
+// Pastikan di dashboard Midtrans untuk transaksi web menggunakan URL ini:
+//   https://xxxx.ngrok-free.app/midtrans/callback
+//
+// Untuk transaksi Flutter gunakan:
+//   https://xxxx.ngrok-free.app/api/midtrans/callback
+//
+// Jika semua transaksi (web + Flutter) menggunakan Midtrans yang SAMA
+// (server key sama, order_id sama), cukup daftarkan SATU URL saja di
+// dashboard Midtrans dan arahkan keduanya ke controller yang sama.
+// Dalam kasus ini, gunakan /api/midtrans/callback karena Flutter yang
+// menjadi sumber masalah.
+// ─────────────────────────────────────────────────────────────────────────────
 Route::post('/midtrans/callback', [MidtransCallbackController::class, 'handle'])
     ->name('midtrans.callback');
 
@@ -129,7 +145,6 @@ require __DIR__ . '/auth.php';
 Route::post('/auth/google/token', [GoogleAuthController::class, 'handleToken'])
     ->name('auth.google.token')
     ->middleware('guest');
-
 
 Route::get('/export-laporan-keuangan', [ExportLaporanController::class, 'export'])
     ->name('export.laporan.keuangan');

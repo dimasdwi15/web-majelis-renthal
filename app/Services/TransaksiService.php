@@ -389,7 +389,7 @@ class TransaksiService
     {
         $expired = Transaksi::where('status', StatusTransaksi::MenungguPembayaran)
             ->where('metode_pembayaran', MetodePembayaran::Tunai)
-            ->whereDate('tanggal_ambil', '<', now()->toDateString())
+            ->where('batas_pembayaran', '<', now())
             ->get();
 
         foreach ($expired as $transaksi) {
@@ -417,7 +417,7 @@ class TransaksiService
     {
         $expired = Transaksi::where('status', StatusTransaksi::MenungguPembayaran)
             ->where('metode_pembayaran', MetodePembayaran::Midtrans)
-            ->where('created_at', '<', now()->subHours(24))
+            ->where('batas_pembayaran', '<', now())
             ->get();
 
         foreach ($expired as $transaksi) {

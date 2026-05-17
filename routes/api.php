@@ -3,12 +3,22 @@
 use App\Http\Controllers\CuacaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\AuthController;
-use App\Http\Controllers\API\Auth\PasswordResetController;   // ← TAMBAHAN
+use App\Http\Controllers\API\Auth\PasswordResetController;
 use App\Http\Controllers\API\BarangController;
 use App\Http\Controllers\API\ProfileController;
 use App\Http\Controllers\API\ImageRecommendationController;
 use App\Http\Controllers\API\ChatController;
 use App\Http\Controllers\API\CheckoutController;
+use App\Http\Controllers\API\MidtransCallbackController; // ← TAMBAHAN
+
+// ─────────────────────────────────────────────────────────────────
+// Midtrans Callback (PUBLIC — tanpa auth, dipanggil server Midtrans)
+// ─────────────────────────────────────────────────────────────────
+// URL yang didaftarkan di dashboard Midtrans Sandbox:
+//   https://xxxx.ngrok-free.app/api/midtrans/callback
+// ─────────────────────────────────────────────────────────────────
+Route::post('/midtrans/callback', [MidtransCallbackController::class, 'handle'])
+    ->name('api.midtrans.callback');
 
 // ─────────────────────────────────────────────────────────────────
 // Cuaca & Lokasi (public)
@@ -52,11 +62,6 @@ Route::prefix('auth')->group(function () {
     Route::post('google',       [AuthController::class, 'googleAuth']);
     Route::post('set-password', [AuthController::class, 'setPassword']);
 
-    // ── Reset Password (3 langkah) ────────────────────────────────────────
-    // 1. POST /api/auth/forgot-password      → kirim OTP ke email
-    // 2. POST /api/auth/verify-reset-otp     → verifikasi OTP, dapatkan reset_token
-    // 3. POST /api/auth/reset-password       → buat password baru pakai reset_token
-    // ─────────────────────────────────────────────────────────────────────
     Route::post('forgot-password',  [PasswordResetController::class, 'forgotPassword']);
     Route::post('verify-reset-otp', [PasswordResetController::class, 'verifyResetOtp']);
     Route::post('reset-password',   [PasswordResetController::class, 'resetPassword']);
@@ -85,23 +90,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/history', [ImageRecommendationController::class, 'history']);
     });
 
-    // ── Checkout ─────────────────────────────────────────────────────────────
+    // ── Checkout ──────────────────────────────────────────────────────────
     Route::prefix('checkout')->group(function () {
-        Route::post('/validasi-identitas', [CheckoutController::class, 'validasiIdentitas']);
-        Route::post('/',                   [CheckoutController::class, 'store']);
-        Route::get('/history',             [CheckoutController::class, 'history']);
-        Route::get('/{id}',                [CheckoutController::class, 'show']);
+        Route::post('/validasi-identitas',   [CheckoutController::class, 'validasiIdentitas']);
+        Route::post('/',                     [CheckoutController::class, 'store']);
+        Route::get('/history',               [CheckoutController::class, 'history']);
+        Route::get('/{id}',                  [CheckoutController::class, 'show']);
+        Route::post('/{id}/reopen-payment',  [CheckoutController::class, 'reopenPayment']);
+        Route::post('/{id}/bayar-denda',     [CheckoutController::class, 'bayarDenda']);
+        Route::get('/{id}/detail-lengkap',   [CheckoutController::class, 'detailLengkap']);
     });
 
-    // ── Cuaca & Lokasi (publik, tidak perlu auth) ──────────────────────────────
+    // ── Cuaca & Lokasi ────────────────────────────────────────────────────
     Route::prefix('lokasi')->group(function () {
-        // GET /api/lokasi/cari?q=Semeru
         Route::get('cari',    [CuacaController::class, 'cariLokasi']);
-
-        // GET /api/lokasi/reverse?lat=-8.06&lon=112.92
         Route::get('reverse', [CuacaController::class, 'reverseLokasi']);
     });
 
-    // GET /api/cuaca?lat=...&lon=...&tanggal_ambil=2026-05-20&nama_lokasi=Gunung+Semeru
     Route::get('cuaca', [CuacaController::class, 'cek']);
 });

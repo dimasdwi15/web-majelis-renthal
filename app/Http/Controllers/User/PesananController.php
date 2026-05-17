@@ -8,13 +8,12 @@ use App\Models\Denda;
 use App\Models\Pembayaran;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Midtrans\Config;
 use Midtrans\Snap;
 
 class PesananController extends Controller
 {
-
-
     public function index(Request $request)
     {
         $query = Transaksi::with(['details.barang', 'denda'])
@@ -56,7 +55,6 @@ class PesananController extends Controller
         abort_if($denda->transaksi->user_id !== Auth::id(), 403);
         abort_if($denda->dibayar_pada !== null, 403, 'Denda sudah dibayar.');
 
-        // Cek apakah sudah ada snap token tersimpan
         $pembayaran = Pembayaran::where('transaksi_id', $denda->transaksi_id)
             ->where('jenis', 'denda')
             ->where('status', 'menunggu')
@@ -110,11 +108,12 @@ class PesananController extends Controller
             return redirect()->route('user.pesanan.bayar-denda', $denda->id);
         }
 
-        // Tunai
         return redirect()
             ->route('user.pesanan.show', $denda->transaksi_id)
             ->with('success', 'Silakan bayar denda secara tunai di toko kami.');
     }
+
+    // Fitur tambahan: bayar ulang untuk transaksi yang belum dibayar (status: Menunggu Pembayaran)
 
     public function bayarUlang(Transaksi $transaksi)
     {
@@ -124,37 +123,86 @@ class PesananController extends Controller
             return back()->with('error', 'Transaksi tidak bisa dibayar ulang.');
         }
 
-        \Midtrans\Config::$serverKey    = config('midtrans.server_key');
-        \Midtrans\Config::$isProduction = config('midtrans.is_production');
-        \Midtrans\Config::$isSanitized  = true;
-        \Midtrans\Config::$is3ds        = true;
+        $pembayaran    = $transaksi->pembayaranUtama;
+        $snapTokenLama = $pembayaran?->referensi_midtrans;
+
+        // Snap token Midtrans berupa UUID panjang (bukan nomor transaksi TRX-...)
+        // Jika token lama valid → kembalikan langsung tanpa generate baru
+        $tokenMasihValid = $snapTokenLama
+            && !str_starts_with($snapTokenLama, 'TRX-')
+            && strlen($snapTokenLama) > 20;
+
+        if ($tokenMasihValid) {
+            return response()->json([
+                'snap_token' => $snapTokenLama,
+            ]);
+        }
+
+        // Token tidak ada / tidak valid → generate baru dengan suffix unik
+        Config::$serverKey    = config('midtrans.server_key');
+        Config::$isProduction = config('midtrans.is_production');
+        Config::$isSanitized  = true;
+        Config::$is3ds        = true;
+
+        // Suffix -R{timestamp} membuat order_id unik di Midtrans.
+        // MidtransCallbackController::handleUtamaPayment() mengenali format ini:
+        //   preg_match('/^(TRX-[A-Z0-9]+-\d+)-R\d+$/', $orderId, $matches)
+        //   → lookup transaksi by $matches[1] (nomor asli)
+        $orderId = $transaksi->nomor_transaksi . '-R' . time();
 
         $params = [
             'transaction_details' => [
-                'order_id'     => $transaksi->nomor_transaksi,
+                'order_id'     => $orderId,
                 'gross_amount' => (int) $transaksi->total_sewa,
             ],
             'customer_details' => [
                 'first_name' => $transaksi->user->name,
                 'email'      => $transaksi->user->email,
+                'phone'      => $transaksi->user->phone ?? '',
+            ],
+            'expiry' => [
+                'start_time' => now()->format('Y-m-d H:i:s O'),
+                'unit'       => 'hours',
+                'duration'   => 24,
             ],
         ];
 
-        $snapToken = \Midtrans\Snap::getSnapToken($params);
+        try {
+            $snapToken = Snap::getSnapToken($params);
+        } catch (\Exception $e) {
+            Log::error('bayarUlang: gagal generate snap token', [
+                'transaksi_id' => $transaksi->id,
+                'order_id'     => $orderId,
+                'error'        => $e->getMessage(),
+            ]);
 
-        $transaksi->pembayaranUtama?->update([
-            'referensi_midtrans' => $snapToken
-        ]);
+            return response()->json([
+                'error' => 'Gagal mendapatkan token pembayaran: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        // Simpan token baru agar klik berikutnya tidak generate ulang
+        if ($pembayaran) {
+            $pembayaran->update(['referensi_midtrans' => $snapToken]);
+        } else {
+            Pembayaran::create([
+                'transaksi_id'       => $transaksi->id,
+                'jenis'              => 'utama',
+                'jumlah'             => $transaksi->total_sewa,
+                'metode'             => 'midtrans',
+                'status'             => 'menunggu',
+                'referensi_midtrans' => $snapToken,
+            ]);
+        }
 
         return response()->json([
-            'snap_token' => $snapToken
+            'snap_token' => $snapToken,
         ]);
     }
 
-
     public function bayarDendaLangsung(Denda $denda)
     {
-        $denda->load('transaksi'); 
+        $denda->load('transaksi');
 
         abort_if($denda->transaksi->user_id !== Auth::id(), 403);
 
@@ -192,7 +240,7 @@ class PesananController extends Controller
         );
 
         return response()->json([
-            'snap_token' => $snapToken
+            'snap_token' => $snapToken,
         ]);
     }
 

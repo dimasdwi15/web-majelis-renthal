@@ -195,6 +195,9 @@ class CheckoutController extends Controller
                 'total_charge'      => 0,
                 'tanggal_ambil'     => $tglAmbil->toDateString(),
                 'tanggal_kembali'   => $tglKembali->toDateString(),
+                'batas_pembayaran'  => $request->metode_pembayaran === 'tunai'
+                    ? $tglAmbil->copy()->addDay()
+                    : now()->addHours(24),
             ]);
 
             foreach ($itemsValid as $barangId => $detail) {
@@ -236,8 +239,8 @@ class CheckoutController extends Controller
                 'ocr_confidence'          => $hasilOcr['confidence'],
                 'perlu_verifikasi_manual' => $hasilOcr['requiresManual'],
                 'diverifikasi_pada'       => ($hasilOcr['valid'] && !$hasilOcr['requiresManual'])
-                                             ? now()
-                                             : null,
+                    ? now()
+                    : null,
             ]);
 
             // ── Buat Record Pembayaran ─────────────────────────────────────────
@@ -318,7 +321,6 @@ class CheckoutController extends Controller
 
             return redirect()->route('checkout.sukses', $transaksi->nomor_transaksi)
                 ->with('metode', 'tunai');
-
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -341,6 +343,40 @@ class CheckoutController extends Controller
 
             return $this->errorResponse($isAjax, $msg, 500);
         }
+    }
+
+    public function validasiIdentitas(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'jenis_identitas' => ['required', 'in:KTP,SIM,PELAJAR'],
+            'foto_identitas'  => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+        ], [
+            'foto_identitas.required' => 'Foto identitas wajib diupload.',
+            'foto_identitas.image'    => 'File harus berupa gambar.',
+            'foto_identitas.mimes'    => 'Format file harus JPG, PNG, atau WEBP.',
+            'foto_identitas.max'      => 'Ukuran foto maksimal 5MB.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $hasilOcr = $this->jalankanOcr($request);
+
+        if ($hasilOcr === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'File foto identitas tidak valid.',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => $hasilOcr,
+        ]);
     }
 
     public function sukses($nomorTransaksi)
