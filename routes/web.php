@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\KatalogController;
 use App\Http\Controllers\KeranjangController;
 use App\Http\Controllers\CheckoutController;
-use App\Http\Controllers\MidtransCallbackController; // Controller web (bukan API)
+use App\Http\Controllers\MidtransCallbackController;
 
 use App\Http\Controllers\User\DashboardController;
 use App\Http\Controllers\User\PesananController;
@@ -14,6 +14,7 @@ use App\Http\Controllers\User\NotifikasiController;
 use App\Http\Controllers\CuacaController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\ExportLaporanController;
+use App\Http\Controllers\Admin\TransaksiQrController;
 
 Route::get('/', fn() => view('home'))->name('home');
 
@@ -108,24 +109,6 @@ Route::middleware(['auth', 'verified'])->prefix('akun')->name('user.')->group(fu
 Route::get('/pesanan/{transaksi}/struk', [PesananController::class, 'struk'])
     ->name('user.pesanan.struk');
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Midtrans webhook — untuk web/Filament (COD, sewa web biasa)
-// Dikecualikan dari CSRF di bootstrap/app.php
-//
-// PENTING: Ini BERBEDA dengan /api/midtrans/callback yang dipakai Flutter.
-// URL ini untuk transaksi yang dibuat lewat web browser (bukan Flutter).
-// Pastikan di dashboard Midtrans untuk transaksi web menggunakan URL ini:
-//   https://xxxx.ngrok-free.app/midtrans/callback
-//
-// Untuk transaksi Flutter gunakan:
-//   https://xxxx.ngrok-free.app/api/midtrans/callback
-//
-// Jika semua transaksi (web + Flutter) menggunakan Midtrans yang SAMA
-// (server key sama, order_id sama), cukup daftarkan SATU URL saja di
-// dashboard Midtrans dan arahkan keduanya ke controller yang sama.
-// Dalam kasus ini, gunakan /api/midtrans/callback karena Flutter yang
-// menjadi sumber masalah.
-// ─────────────────────────────────────────────────────────────────────────────
 Route::post('/midtrans/callback', [MidtransCallbackController::class, 'handle'])
     ->name('midtrans.callback');
 
@@ -138,6 +121,18 @@ Route::post('/bayar-denda/{denda}', [PesananController::class, 'bayarDendaLangsu
 
 // Open Weather
 Route::get('/api/cuaca', [CuacaController::class, 'cek'])->name('cuaca.cek');
+
+// ─── Admin Internal API ────────────────────────────────────────────────────
+// Endpoint untuk fitur QR scanner di halaman admin transaksi.
+Route::middleware(['auth', 'verified'])
+    ->prefix('admin/api')
+    ->group(function () {
+        Route::get(
+            '/transaksis/find-by-nomor/{nomor}',
+            [TransaksiQrController::class, 'findByNomor']
+        )->name('admin.api.transaksis.find-by-nomor');
+    });
+// ──────────────────────────────────────────────────────────────────────────
 
 require __DIR__ . '/auth.php';
 

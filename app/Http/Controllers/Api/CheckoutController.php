@@ -33,14 +33,33 @@ class CheckoutController extends Controller
     // ── GET /api/checkout/history ─────────────────────────────────────────
     public function history(): JsonResponse
     {
-        $transaksi = Transaksi::with(['details.barang', 'denda', 'pembayaran'])
+        $transaksi = Transaksi::with(['details.barang.fotos', 'denda', 'pembayaran'])
             ->where('user_id', Auth::id())
             ->orderByDesc('created_at')
             ->paginate(20);
 
+        // Inject foto_utama & foto_utama_url ke setiap detail (sama seperti detailLengkap)
+        $data = $transaksi->toArray();
+        foreach ($data['data'] as &$trx) {
+            foreach ($trx['details'] as &$detail) {
+                $fotos    = $detail['barang']['fotos'] ?? [];
+                $pathFoto = !empty($fotos) ? ($fotos[0]['path_foto'] ?? null) : null;
+
+                if ($pathFoto) {
+                    $detail['barang']['foto_utama']     = $pathFoto;
+                    $detail['barang']['foto_utama_url'] = asset('storage/' . $pathFoto);
+                } else {
+                    $detail['barang']['foto_utama']     = null;
+                    $detail['barang']['foto_utama_url'] = null;
+                }
+            }
+            unset($detail);
+        }
+        unset($trx);
+
         return response()->json([
             'success' => true,
-            'data'    => $transaksi,
+            'data'    => $data,
         ]);
     }
 
@@ -53,9 +72,10 @@ class CheckoutController extends Controller
     public function detailLengkap(int $id): JsonResponse
     {
         $transaksi = Transaksi::with([
-            'details.barang.fotos',   // <-- FIX #1: load barang_foto
+            'details.barang.fotos',
             'denda.foto',
             'pembayaran',
+            'jaminanIdentitas',  
         ])
             ->where('user_id', Auth::id())
             ->findOrFail($id);
@@ -98,6 +118,15 @@ class CheckoutController extends Controller
             }
         }
         unset($detail);
+
+        // ── Inject foto_jaminan_url ───────────────────────────────────────
+        if (!empty($data['jaminan_identitas'])) {
+            $j = $data['jaminan_identitas'];
+            $pathJaminan = $j['path_file'] ?? null;
+            $data['jaminan_identitas']['foto_url'] = $pathJaminan
+                ? asset('storage/' . $pathJaminan)
+                : null;
+        }
 
         // ── FIX #3: pastikan URL foto denda selalu terisi ────────────────
         foreach ($data['denda'] as &$d) {

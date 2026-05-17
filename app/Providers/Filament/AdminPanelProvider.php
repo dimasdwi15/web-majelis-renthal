@@ -57,7 +57,10 @@ class AdminPanelProvider extends PanelProvider
 
             ->renderHook(
                 'panels::head.end',
-                fn() => '<link rel="stylesheet" href="/custom.css">'
+                fn() => implode("\n", [
+                    '<link rel="stylesheet" href="/custom.css">',
+                    '<script>' . file_get_contents(public_path('js/qr-scanner.js')) . '</script>',
+                ])
             )
 
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
@@ -90,6 +93,7 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
+
 
             ->navigationItems([
                 NavigationItem::make('Website')
