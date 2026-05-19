@@ -12,6 +12,7 @@ use App\Services\AI\GroqVisionService;
 use App\Services\Recommendation\ImageRecommendationService;
 use App\Models\Barang;
 use App\Observers\BarangObserver;
+use App\Services\FcmService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -26,6 +27,10 @@ class AppServiceProvider extends ServiceProvider
         // Service singleton (reuse same instance per request)
         $this->app->singleton(GroqVisionService::class);
         $this->app->singleton(ImageRecommendationService::class);
+
+        $this->app->singleton(FcmService::class, function () {
+            return new FcmService();
+        });
     }
 
     public function boot(): void

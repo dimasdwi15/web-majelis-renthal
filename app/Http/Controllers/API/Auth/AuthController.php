@@ -262,4 +262,30 @@ class AuthController extends Controller
             'message' => 'Password berhasil dibuat.',
         ]);
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // UPDATE FCM TOKEN
+    // POST /api/auth/fcm-token
+    // ─────────────────────────────────────────────────────────────
+    public function updateFcmToken(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'fcm_token' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'FCM Token wajib diisi.',
+            ], 422);
+        }
+
+        $user = $request->user();
+        $user->update(['fcm_token' => $request->fcm_token]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'FCM Token berhasil diperbarui.',
+        ]);
+    }
 }

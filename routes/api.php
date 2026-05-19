@@ -10,6 +10,7 @@ use App\Http\Controllers\API\ImageRecommendationController;
 use App\Http\Controllers\API\ChatController;
 use App\Http\Controllers\API\CheckoutController;
 use App\Http\Controllers\API\MidtransCallbackController; // ← TAMBAHAN
+use App\Http\Controllers\Api\NotifikasiController;
 
 // ─────────────────────────────────────────────────────────────────
 // Midtrans Callback (PUBLIC — tanpa auth, dipanggil server Midtrans)
@@ -76,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::get('me',        [AuthController::class, 'me']);
         Route::delete('logout', [AuthController::class, 'logout']);
+        Route::post('fcm-token',[AuthController::class, 'updateFcmToken']);
     });
 
     // Profile
@@ -99,6 +101,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/reopen-payment',  [CheckoutController::class, 'reopenPayment']);
         Route::post('/{id}/bayar-denda',     [CheckoutController::class, 'bayarDenda']);
         Route::get('/{id}/detail-lengkap',   [CheckoutController::class, 'detailLengkap']);
+    });
+
+    // ── Notifikasi (Flutter) ──────────────────────────────────────────────
+    Route::prefix('notifikasi')->group(function () {
+        Route::get('/',                            [NotifikasiController::class, 'index']);
+        Route::get('/unread-count',                [NotifikasiController::class, 'unreadCount']);
+        Route::patch('/baca-semua',                [NotifikasiController::class, 'bacaSemua']);
+        Route::delete('/hapus-semua',              [NotifikasiController::class, 'hapusSemua']);
+        Route::patch('/{notifikasi}/baca',         [NotifikasiController::class, 'baca']);
+        Route::delete('/{notifikasi}',             [NotifikasiController::class, 'hapus']);
     });
 
     // ── Cuaca & Lokasi ────────────────────────────────────────────────────

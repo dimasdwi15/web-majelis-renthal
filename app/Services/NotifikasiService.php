@@ -7,6 +7,12 @@ use App\Models\User;
 
 class NotifikasiService
 {
+    protected FcmService $fcmService;
+
+    public function __construct(FcmService $fcmService)
+    {
+        $this->fcmService = $fcmService;
+    }
     /**
      * Kirim notifikasi ke seorang user.
      */
@@ -17,7 +23,8 @@ class NotifikasiService
         string $tipe = 'info',
         array  $data = []
     ): Notifikasi {
-        return Notifikasi::create([
+
+        $notif = Notifikasi::create([
             'user_id' => $userId,
             'judul'   => $judul,
             'pesan'   => $pesan,
@@ -25,6 +32,23 @@ class NotifikasiService
             'data'    => $data,
             'dibaca'  => false,
         ]);
+
+        $user = User::find($userId);
+
+        if ($user && !empty($user->fcm_token)) {
+
+            $this->fcmService->sendToToken(
+                fcmToken: $user->fcm_token,
+                title: $judul,
+                body: $pesan,
+                data: $data,
+                onInvalidToken: function () use ($user) {
+                    $user->update(['fcm_token' => null]);
+                },
+            );
+        }
+
+        return $notif;
     }
 
     /**
@@ -47,6 +71,18 @@ class NotifikasiService
                 'data'    => $data,
                 'dibaca'  => false,
             ]);
+
+            if (!empty($admin->fcm_token)) {
+                $this->fcmService->sendToToken(
+                    fcmToken: $admin->fcm_token,
+                    title: $judul,
+                    body: $pesan,
+                    data: $data,
+                    onInvalidToken: function () use ($admin) {
+                        $admin->update(['fcm_token' => null]);
+                    },
+                );
+            }
         }
     }
 
@@ -64,8 +100,8 @@ class NotifikasiService
             userId: $userId,
             judul: 'Tagihan Denda — ' . $nomorTransaksi,
             pesan: 'Anda memiliki tagihan denda sebesar Rp ' . number_format($jumlahDenda, 0, ',', '.') .
-                   ' untuk transaksi ' . $nomorTransaksi .
-                   '. Silakan lakukan pembayaran segera.',
+                ' untuk transaksi ' . $nomorTransaksi .
+                '. Silakan lakukan pembayaran segera.',
             tipe: 'denda',
             data: [
                 'transaksi_id' => $transaksiId,
