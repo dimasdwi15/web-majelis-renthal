@@ -3,31 +3,35 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\OtpVerificationMail;
+use App\Models\EmailOtp;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
     // ─────────────────────────────────────────────────────────────
-    // REGISTER — Email & Password
-    // POST /api/auth/register
+    // LANGKAH 1 REGISTRASI — Kirim OTP ke email
+    // POST /api/auth/send-register-otp
+    //
+    // BELUM membuat user. Server hanya:
+    //   1. Cek apakah email sudah terdaftar
+    //   2. Kirim OTP ke email
+    // User baru dibuat di langkah 2 (register) setelah OTP valid.
     // ─────────────────────────────────────────────────────────────
-    public function register(Request $request): JsonResponse
+    public function sendRegisterOtp(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'name'         => 'required|string|max:255',
-            'email'        => 'required|email|unique:users,email',
-            'password'     => 'required|string|min:6|confirmed',
-            'firebase_uid' => 'nullable|string',
+            'email' => 'required|email',
         ], [
-            'email.unique'       => 'Email sudah digunakan.',
-            'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
-            'password.min'       => 'Kata sandi minimal 6 karakter.',
+            'email.required' => 'Email wajib diisi.',
+            'email.email'    => 'Format email tidak valid.',
         ]);
 
         if ($validator->fails()) {
@@ -38,12 +42,95 @@ class AuthController extends Controller
             ], 422);
         }
 
+        // Tolak jika email sudah terdaftar di database MySQL
+        if (User::where('email', $request->email)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email sudah terdaftar. Silakan login.',
+            ], 422);
+        }
+
+        // Hapus OTP lama yang belum dipakai untuk email ini
+        EmailOtp::where('email', $request->email)->delete();
+
+        // Buat OTP baru & kirim email
+        $otp = EmailOtp::createForEmail($request->email);
+        Mail::to($request->email)->send(new OtpVerificationMail($otp));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Kode OTP telah dikirim ke email Anda.',
+        ], 200);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // LANGKAH 2 REGISTRASI — Verifikasi OTP + Buat User
+    // POST /api/auth/register
+    //
+    // Perubahan dari versi lama:
+    //   - Ditambah field `otp` yang wajib diisi
+    //   - User HANYA dibuat jika OTP valid
+    //   - email_verified_at langsung diisi (sudah terverifikasi via OTP)
+    //   - Firebase tidak lagi digunakan untuk registrasi email
+    // ─────────────────────────────────────────────────────────────
+    public function register(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'name'         => 'required|string|max:255',
+            'email'        => 'required|email|unique:users,email',
+            'password'     => 'required|string|min:6|confirmed',
+            'otp'          => 'required|string|size:6',
+            'firebase_uid' => 'nullable|string',
+        ], [
+            'email.unique'       => 'Email sudah terdaftar.',
+            'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
+            'password.min'       => 'Kata sandi minimal 6 karakter.',
+            'otp.required'       => 'Kode OTP wajib diisi.',
+            'otp.size'           => 'Kode OTP harus 6 digit.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        // ── Cari OTP yang masih aktif untuk email ini ─────────────────────
+        $otpRecord = EmailOtp::where('email', $request->email)
+            ->where('used', false)
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        // OTP tidak ditemukan atau sudah kedaluwarsa
+        if (! $otpRecord) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode OTP tidak ditemukan atau sudah kedaluwarsa. Minta kode baru.',
+            ], 422);
+        }
+
+        // Bandingkan OTP yang diinput dengan hash yang tersimpan di DB
+        if (! Hash::check($request->otp, $otpRecord->otp)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode OTP salah. Periksa kembali kode yang dikirim ke email Anda.',
+            ], 422);
+        }
+
+        // ── OTP valid → tandai sebagai sudah digunakan ────────────────────
+        $otpRecord->update(['used' => true]);
+
+        // ── Buat user di database ─────────────────────────────────────────
         $user = User::create([
-            'name'      => $request->name,
-            'email'     => $request->email,
-            'password'  => Hash::make($request->password),
-            'role'      => 'user',
-            'google_id' => $request->firebase_uid,
+            'name'              => $request->name,
+            'email'             => $request->email,
+            'password'          => Hash::make($request->password),
+            'role'              => 'user',
+            'google_id'         => $request->firebase_uid,
+            'email_verified_at' => now(), // langsung verified karena sudah lewat OTP
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;

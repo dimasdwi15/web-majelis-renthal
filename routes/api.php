@@ -9,14 +9,11 @@ use App\Http\Controllers\API\ProfileController;
 use App\Http\Controllers\API\ImageRecommendationController;
 use App\Http\Controllers\API\ChatController;
 use App\Http\Controllers\API\CheckoutController;
-use App\Http\Controllers\API\MidtransCallbackController; // ← TAMBAHAN
+use App\Http\Controllers\API\MidtransCallbackController;
 use App\Http\Controllers\Api\NotifikasiController;
 
 // ─────────────────────────────────────────────────────────────────
 // Midtrans Callback (PUBLIC — tanpa auth, dipanggil server Midtrans)
-// ─────────────────────────────────────────────────────────────────
-// URL yang didaftarkan di dashboard Midtrans Sandbox:
-//   https://xxxx.ngrok-free.app/api/midtrans/callback
 // ─────────────────────────────────────────────────────────────────
 Route::post('/midtrans/callback', [MidtransCallbackController::class, 'handle'])
     ->name('api.midtrans.callback');
@@ -58,11 +55,18 @@ Route::prefix('chat')->group(function () {
 // Auth Routes (public)
 // ─────────────────────────────────────────────────────────────────
 Route::prefix('auth')->group(function () {
-    Route::post('register',     [AuthController::class, 'register']);
+    // ── Registrasi 2 langkah ──────────────────────────────────────────────
+    // Langkah 1: kirim OTP ke email (BELUM buat user)
+    Route::post('send-register-otp', [AuthController::class, 'sendRegisterOtp']);
+    // Langkah 2: verifikasi OTP + buat user + return token
+    Route::post('register',          [AuthController::class, 'register']);
+
+    // ── Login ─────────────────────────────────────────────────────────────
     Route::post('login',        [AuthController::class, 'login']);
     Route::post('google',       [AuthController::class, 'googleAuth']);
     Route::post('set-password', [AuthController::class, 'setPassword']);
 
+    // ── Reset Password (3 langkah) ────────────────────────────────────────
     Route::post('forgot-password',  [PasswordResetController::class, 'forgotPassword']);
     Route::post('verify-reset-otp', [PasswordResetController::class, 'verifyResetOtp']);
     Route::post('reset-password',   [PasswordResetController::class, 'resetPassword']);
