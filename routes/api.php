@@ -82,6 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('me',        [AuthController::class, 'me']);
         Route::delete('logout', [AuthController::class, 'logout']);
         Route::post('fcm-token',[AuthController::class, 'updateFcmToken']);
+        Route::post('link-google', [AuthController::class, 'linkGoogle']);
     });
 
     // Profile

@@ -24,6 +24,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'phone',
         'alamat',
         'google_id',
+        'auth_provider',
         'avatar',
         'email_verified_at',
         'fcm_token',
@@ -113,6 +114,6 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         );
     }
 
-    
+
 
 }

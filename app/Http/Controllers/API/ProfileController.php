@@ -54,18 +54,44 @@ class ProfileController extends Controller
     // ─────────────────────────────────────────────────────────────────
     public function changePassword(Request $request)
     {
+        $user     = $request->user();
+        $provider = $user->auth_provider ?? 'local';
+
+        if ($provider === 'google') {
+            // Akun Google murni: tidak butuh password lama
+            $request->validate([
+                'new_password' => 'required|string|min:8|confirmed',
+            ], [
+                'new_password.min'       => 'Kata sandi baru minimal 8 karakter.',
+                'new_password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
+            ]);
+
+            $user->update([
+                'password'      => Hash::make($request->new_password),
+                'auth_provider' => 'hybrid',
+            ]);
+
+            return response()->json([
+                'success'       => true,
+                'message'       => 'Password berhasil dibuat. Akun Anda sekarang bisa login dengan Google maupun email.',
+                'auth_provider' => 'hybrid',
+            ]);
+        }
+
+        // Akun local / hybrid: wajib verifikasi password lama
         $request->validate([
-            'current_password'          => 'required|string',
-            'new_password'              => 'required|string|min:8|confirmed',
+            'current_password' => 'required|string',
+            'new_password'     => 'required|string|min:8|confirmed',
+        ], [
+            'current_password.required' => 'Kata sandi saat ini wajib diisi.',
+            'new_password.min'          => 'Kata sandi baru minimal 8 karakter.',
+            'new_password.confirmed'    => 'Konfirmasi kata sandi tidak cocok.',
         ]);
 
-        $user = $request->user();
-
-        // Akun Google tidak punya password lokal
         if (is_null($user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akun Anda terdaftar via Google dan tidak menggunakan kata sandi manual.',
+                'message' => 'Akun ini tidak memiliki password lokal.',
             ], 422);
         }
 
@@ -73,6 +99,13 @@ class ProfileController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Kata sandi saat ini tidak sesuai.',
+            ], 422);
+        }
+
+        if (Hash::check($request->new_password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kata sandi baru tidak boleh sama dengan yang lama.',
             ], 422);
         }
 
@@ -97,6 +130,7 @@ class ProfileController extends Controller
             'alamat'             => $user->alamat,
             'avatar'             => $user->avatar,
             'google_id'          => $user->google_id,
+            'auth_provider'      => $user->auth_provider ?? 'local',
             'email_verified_at'  => $user->email_verified_at,
             'has_password'       => ! is_null($user->password),
             'role'               => $user->role,

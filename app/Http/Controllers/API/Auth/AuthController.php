@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\OtpVerificationMail;
 use App\Models\EmailOtp;
 use App\Models\User;
+use App\Services\FirebaseService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -16,33 +17,27 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
-    // ─────────────────────────────────────────────────────────────
-    // LANGKAH 1 REGISTRASI — Kirim OTP ke email
+    public function __construct(
+        private readonly FirebaseService $firebase
+    ) {}
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // REGISTRASI LANGKAH 1 — Kirim OTP
     // POST /api/auth/send-register-otp
-    //
-    // BELUM membuat user. Server hanya:
-    //   1. Cek apakah email sudah terdaftar
-    //   2. Kirim OTP ke email
-    // User baru dibuat di langkah 2 (register) setelah OTP valid.
-    // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
     public function sendRegisterOtp(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
-        ], [
-            'email.required' => 'Email wajib diisi.',
-            'email.email'    => 'Format email tidak valid.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => $validator->errors()->first(),
-                'errors'  => $validator->errors(),
             ], 422);
         }
 
-        // Tolak jika email sudah terdaftar di database MySQL
         if (User::where('email', $request->email)->exists()) {
             return response()->json([
                 'success' => false,
@@ -50,37 +45,27 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Hapus OTP lama yang belum dipakai untuk email ini
         EmailOtp::where('email', $request->email)->delete();
-
-        // Buat OTP baru & kirim email
         $otp = EmailOtp::createForEmail($request->email);
         Mail::to($request->email)->send(new OtpVerificationMail($otp));
 
         return response()->json([
             'success' => true,
             'message' => 'Kode OTP telah dikirim ke email Anda.',
-        ], 200);
+        ]);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // LANGKAH 2 REGISTRASI — Verifikasi OTP + Buat User
+    // ─────────────────────────────────────────────────────────────────────────
+    // REGISTRASI LANGKAH 2 — Verifikasi OTP + Buat User
     // POST /api/auth/register
-    //
-    // Perubahan dari versi lama:
-    //   - Ditambah field `otp` yang wajib diisi
-    //   - User HANYA dibuat jika OTP valid
-    //   - email_verified_at langsung diisi (sudah terverifikasi via OTP)
-    //   - Firebase tidak lagi digunakan untuk registrasi email
-    // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
     public function register(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'name'         => 'required|string|max:255',
-            'email'        => 'required|email|unique:users,email',
-            'password'     => 'required|string|min:6|confirmed',
-            'otp'          => 'required|string|size:6',
-            'firebase_uid' => 'nullable|string',
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6|confirmed',
+            'otp'      => 'required|string|size:6',
         ], [
             'email.unique'       => 'Email sudah terdaftar.',
             'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
@@ -97,40 +82,36 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // ── Cari OTP yang masih aktif untuk email ini ─────────────────────
         $otpRecord = EmailOtp::where('email', $request->email)
             ->where('used', false)
             ->where('expires_at', '>', now())
             ->latest()
             ->first();
 
-        // OTP tidak ditemukan atau sudah kedaluwarsa
         if (! $otpRecord) {
             return response()->json([
                 'success' => false,
-                'message' => 'Kode OTP tidak ditemukan atau sudah kedaluwarsa. Minta kode baru.',
+                'message' => 'Kode OTP tidak ditemukan atau sudah kedaluwarsa.',
             ], 422);
         }
 
-        // Bandingkan OTP yang diinput dengan hash yang tersimpan di DB
         if (! Hash::check($request->otp, $otpRecord->otp)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Kode OTP salah. Periksa kembali kode yang dikirim ke email Anda.',
+                'message' => 'Kode OTP salah.',
             ], 422);
         }
 
-        // ── OTP valid → tandai sebagai sudah digunakan ────────────────────
         $otpRecord->update(['used' => true]);
 
-        // ── Buat user di database ─────────────────────────────────────────
+        // ── Buat user dengan provider 'local' ─────────────────────────────
         $user = User::create([
             'name'              => $request->name,
             'email'             => $request->email,
             'password'          => Hash::make($request->password),
             'role'              => 'user',
-            'google_id'         => $request->firebase_uid,
-            'email_verified_at' => now(), // langsung verified karena sudah lewat OTP
+            'auth_provider'     => 'local',   // ← selalu local untuk email register
+            'email_verified_at' => now(),
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -143,14 +124,10 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
     // LOGIN — Email & Password
     // POST /api/auth/login
-    //
-    // Jika akun terdaftar via Google (google_id ada) dan password
-    // tidak cocok → kembalikan auth_provider: 'google' supaya
-    // Flutter bisa tampilkan pesan yang tepat.
-    // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
     public function login(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -166,16 +143,11 @@ class AuthController extends Controller
         }
 
         // Coba autentikasi
-        $credentials = [
-            'email'    => $request->email,
-            'password' => $request->password,
-        ];
-
-        if (!Auth::attempt($credentials)) {
-            // Cek apakah user ini sebenarnya terdaftar via Google
+        if (! Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
             $existingUser = User::where('email', $request->email)->first();
 
-            if ($existingUser && $existingUser->google_id) {
+            // Akun Google murni — tidak punya password lokal
+            if ($existingUser && $existingUser->auth_provider === 'google') {
                 return response()->json([
                     'success'       => false,
                     'message'       => 'Akun ini terdaftar menggunakan Google. Silakan login dengan Google.',
@@ -190,8 +162,6 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $request->email)->firstOrFail();
-
-        // Hapus token lama & buat token baru
         $user->tokens()->delete();
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -203,21 +173,21 @@ class AuthController extends Controller
         ]);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // GOOGLE AUTH
+    // ─────────────────────────────────────────────────────────────────────────
+    // GOOGLE AUTH — Verifikasi Firebase ID Token (server-side!)
     // POST /api/auth/google
     //
-    // Jika email sudah terdaftar via email (tidak punya google_id)
-    // → kembalikan auth_provider: 'email' supaya Flutter bisa
-    // tampilkan pesan yang tepat.
-    // ─────────────────────────────────────────────────────────────
+    // PERUBAHAN PENTING dari versi lama:
+    //   - Sebelum: menerima google_id langsung dari client (TIDAK AMAN)
+    //   - Sekarang: menerima firebase_token, diverifikasi di server
+    //   - Tidak lagi menyimpan password random untuk akun Google
+    // ─────────────────────────────────────────────────────────────────────────
     public function googleAuth(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'google_id' => 'required|string',
-            'name'      => 'required|string|max:255',
-            'email'     => 'required|email',
-            'avatar'    => 'nullable|string',
+            'firebase_token' => 'required|string',  // ← ganti dari google_id
+        ], [
+            'firebase_token.required' => 'Firebase token wajib diisi.',
         ]);
 
         if ($validator->fails()) {
@@ -227,15 +197,36 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Cari user berdasarkan google_id atau email
-        $user = User::where('google_id', $request->google_id)
-            ->orWhere('email', $request->email)
+        // ── VERIFIKASI Firebase ID Token di server ─────────────────────────
+        try {
+            $firebaseUser = $this->firebase->verifyIdToken($request->firebase_token);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token Google tidak valid: ' . $e->getMessage(),
+            ], 401);
+        }
+
+        $uid   = $firebaseUser['uid'];
+        $email = $firebaseUser['email'];
+        $name  = $firebaseUser['name']    ?? '';
+        $avatar = $firebaseUser['picture'] ?? null;
+
+        if (! $email) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email tidak ditemukan di akun Google ini.',
+            ], 422);
+        }
+
+        // ── Cari user berdasarkan google_id atau email ─────────────────────
+        $user = User::where('google_id', $uid)
+            ->orWhere('email', $email)
             ->first();
 
         if ($user) {
-            // Jika akun ditemukan via email tapi TIDAK punya google_id
-            // berarti akun ini terdaftar dengan email & password
-            if (!$user->google_id) {
+            // Akun email/password yang belum pernah pakai Google
+            if ($user->auth_provider === 'local') {
                 return response()->json([
                     'success'       => false,
                     'message'       => 'Akun ini terdaftar menggunakan email & password. Silakan login dengan email.',
@@ -243,26 +234,27 @@ class AuthController extends Controller
                 ], 403);
             }
 
-            // Update data user Google yang sudah ada
+            // Update data Google (nama, avatar bisa berubah)
             $user->update([
-                'google_id'         => $request->google_id,
-                'avatar'            => $request->avatar ?? $user->avatar,
+                'google_id'         => $uid,
+                'avatar'            => $avatar ?? $user->avatar,
                 'email_verified_at' => $user->email_verified_at ?? now(),
             ]);
         } else {
-            // Buat akun baru via Google
+            // ── Buat akun baru via Google ─────────────────────────────────
+            // TIDAK ADA password random — password null untuk Google murni
             $user = User::create([
-                'name'              => $request->name,
-                'email'             => $request->email,
-                'password'          => Hash::make(Str::random(32)),
+                'name'              => $name ?: explode('@', $email)[0],
+                'email'             => $email,
+                'password'          => null,   // ← tidak ada random password
                 'role'              => 'user',
-                'google_id'         => $request->google_id,
-                'avatar'            => $request->avatar,
+                'google_id'         => $uid,
+                'auth_provider'     => 'google',
+                'avatar'            => $avatar,
                 'email_verified_at' => now(),
             ]);
         }
 
-        // Hapus token lama & buat token baru
         $user->tokens()->delete();
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -274,22 +266,108 @@ class AuthController extends Controller
         ]);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // LOGOUT
-    // ─────────────────────────────────────────────────────────────
-    public function logout(Request $request): JsonResponse
+    // ─────────────────────────────────────────────────────────────────────────
+    // SET PASSWORD — untuk akun Google yang ingin tambah password lokal
+    // POST /api/auth/set-password
+    //
+    // Setelah berhasil, auth_provider diupdate ke 'hybrid'
+    // ─────────────────────────────────────────────────────────────────────────
+    public function setPassword(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $validator = Validator::make($request->all(), [
+            'password' => 'required|string|min:8|confirmed',
+        ], [
+            'password.min'       => 'Kata sandi minimal 8 karakter.',
+            'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        /** @var User $user */
+        $user = $request->user();
+
+        // Hanya akun Google yang boleh set password lewat endpoint ini
+        if (! in_array($user->auth_provider, ['google', 'hybrid'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Endpoint ini hanya untuk akun Google.',
+            ], 403);
+        }
+
+        $user->update([
+            'password'      => Hash::make($request->password),
+            'auth_provider' => 'hybrid',  // ← sekarang bisa login dua cara
+        ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Logout berhasil.',
+            'message' => 'Password berhasil dibuat. Akun Anda sekarang bisa login dengan Google maupun email.',
         ]);
     }
 
-    // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────────
+    // LINK GOOGLE — untuk akun local yang ingin hubungkan Google
+    // POST /api/auth/link-google  (protected)
+    // ─────────────────────────────────────────────────────────────────────────────
+    public function linkGoogle(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'firebase_token' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
+        }
+
+        try {
+            $firebaseUser = $this->firebase->verifyIdToken($request->firebase_token);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Token Google tidak valid.'], 401);
+        }
+
+        $uid = $firebaseUser['uid'];
+
+        // Cek google_id sudah dipakai akun lain
+        if (User::where('google_id', $uid)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun Google ini sudah terhubung ke akun lain.',
+            ], 422);
+        }
+
+        /** @var User $user */
+        $user = $request->user();
+        $user->update([
+            'google_id'     => $uid,
+            'auth_provider' => 'hybrid',
+            'avatar'        => $user->avatar ?? $firebaseUser['picture'],
+        ]);
+
+        return response()->json([
+            'success'       => true,
+            'message'       => 'Akun Google berhasil dihubungkan.',
+            'auth_provider' => 'hybrid',
+            'user'          => $this->formatUser($user->fresh()),
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LOGOUT
+    // ─────────────────────────────────────────────────────────────────────────
+    public function logout(Request $request): JsonResponse
+    {
+        $request->user()->currentAccessToken()->delete();
+        return response()->json(['success' => true, 'message' => 'Logout berhasil.']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // ME
-    // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
     public function me(Request $request): JsonResponse
     {
         return response()->json([
@@ -298,9 +376,27 @@ class AuthController extends Controller
         ]);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // FORMAT USER
-    // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // UPDATE FCM TOKEN
+    // ─────────────────────────────────────────────────────────────────────────
+    public function updateFcmToken(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'fcm_token' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'FCM Token wajib diisi.'], 422);
+        }
+
+        $request->user()->update(['fcm_token' => $request->fcm_token]);
+
+        return response()->json(['success' => true, 'message' => 'FCM Token berhasil diperbarui.']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // FORMAT USER — response JSON yang konsisten
+    // ─────────────────────────────────────────────────────────────────────────
     private function formatUser(User $user): array
     {
         return [
@@ -312,67 +408,9 @@ class AuthController extends Controller
             'alamat'            => $user->alamat,
             'avatar'            => $user->avatar,
             'email_verified_at' => $user->email_verified_at,
+            'auth_provider'     => $user->auth_provider,   // ← BARU: dikirim ke Flutter
             'google_id'         => $user->google_id,
+            'has_password'      => ! is_null($user->password),  // ← helper untuk Flutter
         ];
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // SET PASSWORD GOOGLE ACCOUNT
-    // POST /api/auth/set-password
-    // ─────────────────────────────────────────────────────────────
-    public function setPassword(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'email'    => 'required|email|exists:users,email',
-            'password' => 'required|string|min:6|confirmed',
-        ], [
-            'email.exists'       => 'Email tidak ditemukan.',
-            'password.confirmed' => 'Konfirmasi password tidak cocok.',
-            'password.min'       => 'Password minimal 6 karakter.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => $validator->errors()->first(),
-            ], 422);
-        }
-
-        $user = User::where('email', $request->email)->first();
-
-        $user->update([
-            'password' => Hash::make($request->password),
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Password berhasil dibuat.',
-        ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // UPDATE FCM TOKEN
-    // POST /api/auth/fcm-token
-    // ─────────────────────────────────────────────────────────────
-    public function updateFcmToken(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'fcm_token' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'FCM Token wajib diisi.',
-            ], 422);
-        }
-
-        $user = $request->user();
-        $user->update(['fcm_token' => $request->fcm_token]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'FCM Token berhasil diperbarui.',
-        ]);
     }
 }
