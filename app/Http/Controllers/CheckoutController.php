@@ -305,6 +305,13 @@ class CheckoutController extends Controller
                 metode: $metodeLabel
             );
 
+            // ── Award XP langsung untuk Midtrans (non-COD) ───────────────
+            // COD: XP diberikan setelah admin ubah status ke 'berjalan'
+            if ($request->metode_pembayaran === 'midtrans') {
+                $transaksi->refresh();
+                app(\App\Services\RewardsService::class)->awardCheckoutXp($transaksi);
+            }
+
             DB::commit();
 
             session()->forget('cart');

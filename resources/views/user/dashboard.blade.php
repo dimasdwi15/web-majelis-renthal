@@ -13,6 +13,19 @@
     <p class="text-xs mt-1" style="color: #7b776c;">{{ now()->translatedFormat('l, d F Y') }}</p>
 </div>
 
+{{-- Promo Banner --}}
+<div class="mb-7 p-4 rounded-xl flex items-center justify-between" style="background: linear-gradient(135deg, #655e44, #2f342e); color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+    <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center bg-white/20">
+            <span class="material-symbols-outlined text-2xl" style="color: #F2E8C6;">stars</span>
+        </div>
+        <div>
+            <h3 class="font-bold text-sm" style="color: #F2E8C6;">Dapatkan Promo & Mystery Box!</h3>
+            <p class="text-[11px] opacity-90 mt-0.5 max-w-sm">Dapatkan fitur eksklusif, diskon melimpah, dan kumpulkan XP Rewards hanya di Aplikasi Mobile kami.</p>
+        </div>
+    </div>
+</div>
+
 {{-- Stats Grid --}}
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-7">
     @php

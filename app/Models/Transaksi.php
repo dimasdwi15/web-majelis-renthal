@@ -238,4 +238,12 @@ class Transaksi extends Model
     {
         return $this->hasMany(TransaksiDetail::class, 'transaksi_id', 'id');
     }
+
+    /**
+     * Voucher yang digunakan pada transaksi ini.
+     */
+    public function userVoucher()
+    {
+        return $this->hasOne(UserVoucher::class, 'used_in_transaksi_id');
+    }
 }

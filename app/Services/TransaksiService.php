@@ -20,10 +20,12 @@ use Midtrans\Snap;
 class TransaksiService
 {
     protected NotifikasiService $notifikasi;
+    protected \App\Services\RewardsService $rewards;
 
-    public function __construct(NotifikasiService $notifikasi)
+    public function __construct(NotifikasiService $notifikasi, \App\Services\RewardsService $rewards)
     {
         $this->notifikasi = $notifikasi;
+        $this->rewards    = $rewards;
     }
 
     // ── 0. AUTO-MARK TERLAMBAT ──────────────────────────────────────────
@@ -50,19 +52,19 @@ class TransaksiService
         return $transaksiTerlambat->count();
     }
 
-    // ── 1. BAYAR COD ────────────────────────────────────────────────────
+    // ── 1. BAYAR COD ───────────────────────────────────────────────
     public function bayarCod(Transaksi $transaksi): void
     {
         DB::transaction(function () use ($transaksi) {
             $transaksi->pembayaranUtama?->update([
-                'status' => 'lunas',
+                'status'     => 'lunas',
                 'dibayar_pada' => now(),
             ]);
 
             $transaksi->update([
-                'status' => StatusTransaksi::Berjalan,
+                'status'            => StatusTransaksi::Berjalan,
                 'status_pembayaran' => 'lunas',
-                'tanggal_ambil' => now(),
+                'tanggal_ambil'     => now(),
             ]);
 
             foreach ($transaksi->details as $detail) {
@@ -77,6 +79,11 @@ class TransaksiService
                 pesan: 'Pembayaran tunai dikonfirmasi. Barang telah diambil. Selamat menggunakan!'
             );
         });
+
+        // ── Award XP setelah status jadi Berjalan (COD) ──────────────
+        // XP untuk COD diberikan setelah user datang ke basecamp & admin konfirmasi
+        $transaksi->refresh();
+        $this->rewards->awardCheckoutXp($transaksi);
     }
 
     // ── 2. AMBIL BARANG (Cashless — opsional, jika admin perlu konfirmasi) ─

@@ -10,6 +10,7 @@ use Illuminate\Notifications\Notifiable;
 use Filament\Panel;
 use Filament\Models\Contracts\FilamentUser;
 use App\Models\RecommendationHistory;
+use App\Models\XpLog;
 
 class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
@@ -77,4 +78,41 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
     {
         return $this->hasMany(RecommendationHistory::class);
     }
+
+    // ─── Rewards ───────────────────────────────────────────
+
+    public function reward()
+    {
+        return $this->hasOne(UserReward::class);
+    }
+
+    public function vouchers()
+    {
+        return $this->hasMany(UserVoucher::class);
+    }
+
+    public function xpLogs()
+    {
+        return $this->hasMany(XpLog::class);
+    }
+
+    /**
+     * Ambil atau buat UserReward untuk user ini.
+     */
+    public function getOrCreateReward(): UserReward
+    {
+        return $this->reward()->firstOrCreate(
+            ['user_id' => $this->id],
+            [
+                'total_xp'        => 0,
+                'current_xp'      => 0,
+                'level'           => 1,
+                'available_boxes' => 0,
+                'current_streak'  => 0,
+            ]
+        );
+    }
+
+    
+
 }

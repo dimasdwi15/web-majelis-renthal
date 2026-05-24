@@ -54,6 +54,7 @@ class ViewTransaksi extends ViewRecord
                 'denda.foto:id,denda_id,path_foto',
                 'pembayaran:id,transaksi_id,jenis,jumlah,status,dibayar_pada',
                 'barangRusak.barang.fotoUtama',
+                'userVoucher.template',
             ])
             ->findOrFail($key);
     }
@@ -612,6 +613,27 @@ class ViewTransaksi extends ViewRecord
                                                         ]),
                                                     ])
                                                     ->contained(false),
+                                            ]),
+
+                                        Section::make('Promo & Voucher')
+                                            ->description('Voucher yang digunakan pada transaksi ini')
+                                            ->icon('heroicon-o-ticket')
+                                            ->visible(fn (Transaksi $record) => $record->userVoucher !== null)
+                                            ->schema([
+                                                Grid::make(2)->schema([
+                                                    TextEntry::make('userVoucher.unique_code')
+                                                        ->label('Kode Voucher')
+                                                        ->badge()
+                                                        ->color('success'),
+
+                                                    TextEntry::make('userVoucher.template.title')
+                                                        ->label('Promo')
+                                                        ->weight(FontWeight::Bold),
+
+                                                    TextEntry::make('userVoucher.dynamic_description')
+                                                        ->label('Deskripsi')
+                                                        ->columnSpanFull(),
+                                                ]),
                                             ]),
                                     ]),
 

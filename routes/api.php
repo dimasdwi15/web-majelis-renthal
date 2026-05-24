@@ -1,5 +1,4 @@
 <?php
-
 use App\Http\Controllers\CuacaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\AuthController;
@@ -11,6 +10,7 @@ use App\Http\Controllers\API\ChatController;
 use App\Http\Controllers\API\CheckoutController;
 use App\Http\Controllers\API\MidtransCallbackController;
 use App\Http\Controllers\Api\NotifikasiController;
+use App\Http\Controllers\API\RewardsController;
 
 // ─────────────────────────────────────────────────────────────────
 // Midtrans Callback (PUBLIC — tanpa auth, dipanggil server Midtrans)
@@ -124,4 +124,16 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('cuaca', [CuacaController::class, 'cek']);
+
+    // ── Rewards ──────────────────────────────────────────────────────
+    Route::prefix('rewards')->group(function () {
+        Route::get('profile',           [RewardsController::class, 'profile']);
+        Route::post('claim-daily',      [RewardsController::class, 'claimDaily']);
+        Route::get('voucher-catalog',   [RewardsController::class, 'voucherCatalog']);
+        Route::get('my-vouchers',       [RewardsController::class, 'myVouchers']);
+        Route::post('redeem-voucher',   [RewardsController::class, 'redeemVoucher']);
+        Route::post('open-box',         [RewardsController::class, 'openBox']);
+        Route::get('xp-logs',           [RewardsController::class, 'xpLogs']);
+        Route::post('validate-voucher', [RewardsController::class, 'validateVoucher']);
+    });
 });

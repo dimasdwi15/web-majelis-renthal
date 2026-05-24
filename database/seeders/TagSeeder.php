@@ -10,7 +10,7 @@ use Illuminate\Database\Seeder;
  *
  * PENTING: slug bersifat PERMANEN. Jangan ubah slug setelah sistem berjalan
  * karena slug digunakan sebagai referensi stabil di weather_tag_rules.
- * Yang boleh diubah hanya `label` dan `deskripsi`.
+ * Yang boleh diubah hanya `label` dan `deskripsi`.  
  *
  * Untuk tambah tag baru, cukup tambah entry di array $tags ini
  * lalu jalankan: php artisan db:seed --class=TagSeeder

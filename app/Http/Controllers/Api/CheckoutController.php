@@ -10,6 +10,7 @@ use App\Models\Pembayaran;
 use App\Models\Transaksi;
 use App\Models\TransaksiDetail;
 use App\Services\OcrIdentitasService;
+use App\Services\RewardsService;
 use App\Services\TransaksiService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -28,19 +29,33 @@ class CheckoutController extends Controller
     public function __construct(
         protected TransaksiService    $transaksiService,
         protected OcrIdentitasService $ocrService,
+        protected RewardsService      $rewardsService,
     ) {}
 
     // ── GET /api/checkout/history ─────────────────────────────────────────
     public function history(): JsonResponse
     {
-        $transaksi = Transaksi::with(['details.barang.fotos', 'denda', 'pembayaran'])
+        $transaksi = Transaksi::with([
+            'details.barang.fotos',
+            'denda',
+            'pembayaran',
+            'userVoucher.template',
+            'userVoucher.mysteryBoxItem',
+        ])
             ->where('user_id', Auth::id())
             ->orderByDesc('created_at')
             ->paginate(20);
 
         // Inject foto_utama & foto_utama_url ke setiap detail (sama seperti detailLengkap)
         $data = $transaksi->toArray();
+
+        // Pre-load semua mystery_box_items indexed by title untuk lookup orphan vouchers
+        // (voucher dari mystery box lama yang mystery_box_item_id-nya belum tersimpan)
+        $mysteryItemsByTitle = \App\Models\MysteryBoxItem::all()
+            ->keyBy('title');
+
         foreach ($data['data'] as &$trx) {
+            // ── Inject foto_utama_url ke setiap detail ────────────────────────────
             foreach ($trx['details'] as &$detail) {
                 $fotos    = $detail['barang']['fotos'] ?? [];
                 $pathFoto = !empty($fotos) ? ($fotos[0]['path_foto'] ?? null) : null;
@@ -54,6 +69,28 @@ class CheckoutController extends Controller
                 }
             }
             unset($detail);
+
+            if (isset($trx['user_voucher']) && is_array($trx['user_voucher'])) {
+                $uv     = &$trx['user_voucher'];
+                $rarity = 'Common';
+
+                if (!empty($uv['template']['rarity'])) {
+                    // Voucher dari redeem XP → pakai rarity dari voucher_templates
+                    $rarity = $uv['template']['rarity'];
+                } elseif (!empty($uv['mystery_box_item']['rarity'])) {
+                    // Voucher mystery box modern (FK sudah ada) → pakai rarity dari mystery_box_items
+                    $rarity = $uv['mystery_box_item']['rarity'];
+                } elseif (!empty($uv['mystery_title_snapshot'])) {
+                    // Voucher orphan: cari mystery_box_item berdasarkan judul snapshot
+                    $matchedItem = $mysteryItemsByTitle->get($uv['mystery_title_snapshot']);
+                    if ($matchedItem) {
+                        $rarity = $matchedItem->rarity;
+                    }
+                }
+
+                $uv['computed_rarity'] = $rarity; // field baru untuk Flutter
+                unset($uv);
+            }
         }
         unset($trx);
 
@@ -75,7 +112,9 @@ class CheckoutController extends Controller
             'details.barang.fotos',
             'denda.foto',
             'pembayaran',
-            'jaminanIdentitas',  
+            'jaminanIdentitas',
+            'userVoucher.template',
+            'userVoucher.mysteryBoxItem',
         ])
             ->where('user_id', Auth::id())
             ->findOrFail($id);
@@ -129,12 +168,12 @@ class CheckoutController extends Controller
         }
 
         // ── FIX #3: pastikan URL foto denda selalu terisi ────────────────
+        // ── FIX #3: pastikan URL foto denda selalu terisi ────────────────
         foreach ($data['denda'] as &$d) {
             if (!empty($d['foto'])) {
                 foreach ($d['foto'] as &$f) {
                     $pathFoto = $f['path_foto'] ?? null;
                     if ($pathFoto) {
-                        // Selalu generate URL baru dari APP_URL agar kompatibel ngrok
                         $f['url']  = asset('storage/' . $pathFoto);
                         $f['path'] = $pathFoto;
                     }
@@ -143,6 +182,32 @@ class CheckoutController extends Controller
             }
         }
         unset($d);
+
+        if (isset($data['user_voucher']) && is_array($data['user_voucher'])) {
+            $uv     = &$data['user_voucher'];
+            $rarity = 'Common';
+
+            if (!empty($uv['template']['rarity'])) {
+                // Voucher dari redeem XP
+                $rarity = $uv['template']['rarity'];
+            } elseif (!empty($uv['mystery_box_item']['rarity'])) {
+                // Voucher mystery box modern (FK ada)
+                $rarity = $uv['mystery_box_item']['rarity'];
+            } elseif (!empty($uv['mystery_title_snapshot'])) {
+                // Voucher orphan: lookup ke mystery_box_items by title snapshot
+                $matchedItem = \App\Models\MysteryBoxItem::where(
+                    'title',
+                    $uv['mystery_title_snapshot']
+                )->first();
+
+                if ($matchedItem) {
+                    $rarity = $matchedItem->rarity;
+                }
+            }
+
+            $uv['computed_rarity'] = $rarity;
+            unset($uv);
+        }
 
         return response()->json([
             'success' => true,
@@ -153,7 +218,7 @@ class CheckoutController extends Controller
     // ── GET /api/checkout/{id} ────────────────────────────────────────────
     public function show(int $id): JsonResponse
     {
-        $transaksi = Transaksi::with(['details.barang', 'denda', 'pembayaran'])
+        $transaksi = Transaksi::with(['details.barang', 'denda', 'pembayaran', 'userVoucher.template'])
             ->where('user_id', Auth::id())
             ->findOrFail($id);
 
@@ -176,6 +241,7 @@ class CheckoutController extends Controller
             'items'             => 'required|array|min:1',
             'items.*.barang_id' => 'required|integer|exists:barang,id',
             'items.*.qty'       => 'required|integer|min:1',
+            'voucher_code'      => 'nullable|string',  // unique_code dari user_vouchers
         ]);
 
         if ($validator->fails()) {
@@ -260,7 +326,35 @@ class CheckoutController extends Controller
             ];
         }
 
-        // ── 5. Simpan ke database ─────────────────────────────────────────
+        // ── 5. Validasi voucher (opsional) ────────────────────────────
+        $appliedVoucher    = null;
+        $voucherDiscount   = 0;
+        $freeItemBarangId  = null;
+        $voucherCode       = $request->input('voucher_code');
+
+        if ($voucherCode) {
+            $voucherResult = $this->rewardsService->applyVoucher(
+                Auth::user(),
+                $voucherCode,
+                $totalSewa
+            );
+
+            if (! $voucherResult['valid']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $voucherResult['message'],
+                ], 422);
+            }
+
+            $appliedVoucher   = $voucherResult['voucher'];
+            $voucherDiscount  = (int) $voucherResult['discount'];
+            $freeItemBarangId = $voucherResult['free_barang_id'];
+
+            // Kurangi total sewa dengan diskon voucher
+            $totalSewa = max(0, $totalSewa - $voucherDiscount);
+        }
+
+        // ── 6. Simpan ke database ─────────────────────────────────────────
         DB::beginTransaction();
         $pathFoto = null;
 
@@ -295,6 +389,21 @@ class CheckoutController extends Controller
 
                 if ($request->metode_pembayaran === 'midtrans') {
                     $detail['barang']->decrement('stok', $detail['qty']);
+                }
+            }
+
+            // ── Tambah free item dari voucher (harga 0) ──────────────────
+            if ($freeItemBarangId) {
+                $barangGratis = Barang::find($freeItemBarangId);
+                if ($barangGratis) {
+                    TransaksiDetail::create([
+                        'transaksi_id'   => $transaksi->id,
+                        'barang_id'      => $barangGratis->id,
+                        'jumlah'         => 1,
+                        'harga_per_hari' => 0,
+                        'durasi_hari'    => $durasi,
+                        'subtotal'       => 0,
+                    ]);
                 }
             }
 
@@ -352,6 +461,15 @@ class CheckoutController extends Controller
                     ];
                 }
 
+                if ($voucherDiscount > 0) {
+                    $itemDetails[] = [
+                        'id'       => 'VOUCHER-DISC',
+                        'price'    => -(int) $voucherDiscount,
+                        'quantity' => 1,
+                        'name'     => 'Diskon Voucher',
+                    ];
+                }
+
                 $params = [
                     'transaction_details' => [
                         // FIX #4: order_id = nomor_transaksi ASLI (tanpa suffix time)
@@ -389,10 +507,23 @@ class CheckoutController extends Controller
 
             app(\App\Services\NotifikasiService::class)->notifTransaksiBaru(
                 nomorTransaksi: $nomorTransaksi,
-                namaUser:       Auth::user()->name,
-                transaksiId:    $transaksi->id,
-                metode:         $metodeLabel,
+                namaUser: Auth::user()->name,
+                transaksiId: $transaksi->id,
+                metode: $metodeLabel,
             );
+
+            // ── Mark voucher digunakan ────────────────────────────────────
+            if ($appliedVoucher) {
+                $this->rewardsService->useVoucher($appliedVoucher, $transaksi->id);
+            }
+
+            // ── Award XP: hanya untuk Midtrans (pembayaran langsung konfirmasi) ──────────
+            // COD: XP diberikan nanti di TransaksiService::bayarCod()
+            //      yaitu setelah admin ubah status → 'berjalan'
+            if ($request->metode_pembayaran === 'midtrans') {
+                $transaksi->refresh();
+                $this->rewardsService->awardCheckoutXp($transaksi);
+            }
 
             DB::commit();
 
@@ -409,7 +540,6 @@ class CheckoutController extends Controller
                     'redirect_url'    => $redirectUrl,
                 ],
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -628,7 +758,6 @@ class CheckoutController extends Controller
             ];
 
             return Snap::getSnapToken($params);
-
         } catch (\Exception $e) {
             // Jika duplikat order_id, gunakan suffix timestamp
             // Callback handler sudah disiapkan untuk strip suffix ini
