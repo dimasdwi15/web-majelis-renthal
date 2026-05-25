@@ -114,6 +114,23 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         );
     }
 
+    public function isGoogle(): bool
+    {
+        return $this->auth_provider === 'google';
+    }
 
+    public function isLocal(): bool
+    {
+        return $this->auth_provider === 'local';
+    }
 
+    public function isHybrid(): bool
+    {
+        return $this->auth_provider === 'hybrid';
+    }
+
+    public function hasPassword(): bool
+    {
+        return ! is_null($this->password);
+    }
 }

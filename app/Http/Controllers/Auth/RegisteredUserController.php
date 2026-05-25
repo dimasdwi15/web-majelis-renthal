@@ -46,6 +46,7 @@ class RegisteredUserController extends Controller
                 'phone'    => $request->phone,
                 'alamat'   => $request->alamat,
                 'password' => Hash::make($request->password),
+                'auth_provider' => 'local',
             ]
         ]);
 

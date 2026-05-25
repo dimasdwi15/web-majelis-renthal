@@ -37,19 +37,33 @@ class ProfilController extends Controller
 
     public function updatePassword(Request $request)
     {
+        /** @var User $user */
+        $user = Auth::user();
+
+        // Akun Google yang belum punya password → tidak perlu validasi password lama
+        if ($user->isGoogle() && ! $user->hasPassword()) {
+            $request->validate([
+                'password' => ['required', 'min:8', 'confirmed'],
+            ]);
+
+            $user->update([
+                'password' => Hash::make($request->password),
+                // Setelah set password, akun Google jadi hybrid
+                'auth_provider' => 'hybrid',
+            ]);
+
+            return back()->with('success', 'Password berhasil dibuat. Akun Anda sekarang bisa login dengan Google atau email/password.');
+        }
+
+        // Akun local atau hybrid yang sudah punya password → wajib masukkan password lama
         $request->validate([
             'current_password' => ['required', 'current_password'],
             'password'         => ['required', 'min:8', 'confirmed'],
         ]);
 
-        /** @var User $user */
-        $user = Auth::user();
-
-        if ($user) {
-            $user->update([
-                'password' => Hash::make($request->password),
-            ]);
-        }
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
 
         return back()->with('success', 'Password berhasil diperbarui.');
     }

@@ -45,8 +45,9 @@ class GoogleAuthController extends Controller
             if ($user) {
                 // Update google_id & avatar jika belum ada
                 $user->update([
-                    'google_id' => $googleId,
-                    'avatar'    => $avatar,
+                    'google_id'     => $googleId,
+                    'avatar'        => $avatar,
+                    'auth_provider' => $user->auth_provider === 'local' ? 'hybrid' : $user->auth_provider,
                 ]);
 
                 // Jika email sudah terverifikasi → langsung login, tidak perlu OTP
@@ -81,7 +82,8 @@ class GoogleAuthController extends Controller
                     'email'     => $email,
                     'phone'     => null,
                     'alamat'    => null,
-                    'password'  => Hash::make(Str::random(32)), // random — login via Google
+                    'password'      => null,
+                    'auth_provider' => 'google',
                     'google_id' => $googleId,
                     'avatar'    => $avatar,
                 ],
@@ -93,7 +95,6 @@ class GoogleAuthController extends Controller
                 'success'  => true,
                 'redirect' => route('verification.notice'),
             ]);
-
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,

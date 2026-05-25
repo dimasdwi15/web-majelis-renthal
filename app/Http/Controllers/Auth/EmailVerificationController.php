@@ -79,7 +79,8 @@ class EmailVerificationController extends Controller
                 'password'          => $pending['password'],
                 'google_id'         => $pending['google_id'] ?? null,
                 'avatar'            => $pending['avatar'] ?? null,
-                'email_verified_at' => now(), // ← bisa diisi karena sudah ada di $fillable
+                'email_verified_at' => now(),
+                'auth_provider' => $pending['auth_provider'] ?? 'local',
             ]);
 
             // Bersihkan session pending
