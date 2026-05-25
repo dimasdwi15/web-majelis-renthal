@@ -105,6 +105,13 @@ class RewardsController extends Controller
 
         $result = $this->rewards->redeemVoucher(Auth::user(), $request->template_id);
 
+        if ($result['success']) {
+            $result['voucher']->loadMissing([
+                'template',
+                'template.freeBarang',
+                'freeBarang',
+            ]);
+        }
         if (! $result['success']) {
             return response()->json(['status' => 'error', 'message' => $result['message']], 422);
         }
