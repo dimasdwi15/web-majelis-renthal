@@ -200,11 +200,16 @@
             <div class="px-4 py-4 flex-shrink-0 mx-3 my-3 rounded-xl"
                 style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.05);">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style="background: linear-gradient(135deg, #655e44, #4d4030);">
-                        <span
-                            class="text-[#F2E8C6] text-sm font-black">{{ strtoupper(substr(Auth::user()->name, 0, 1)) }}</span>
-                    </div>
+                    @if (Auth::user()->avatar)
+                        <img src="{{ str_starts_with(Auth::user()->avatar, 'http') ? Auth::user()->avatar : asset('storage/' . Auth::user()->avatar) }}"
+                            class="w-9 h-9 rounded-xl object-cover flex-shrink-0" alt="Avatar">
+                    @else
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style="background: linear-gradient(135deg, #655e44, #4d4030);">
+                            <span
+                                class="text-[#F2E8C6] text-sm font-black">{{ strtoupper(substr(Auth::user()->name, 0, 1)) }}</span>
+                        </div>
+                    @endif  
                     <div class="min-w-0">
                         <p class="text-[#F2E8C6] text-xs font-bold truncate">{{ Auth::user()->name }}</p>
                         <p class="text-[10px] truncate" style="color: #655e44;">{{ Auth::user()->email }}</p>

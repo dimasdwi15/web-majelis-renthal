@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 
 class ProfilController extends Controller
 {
@@ -23,13 +24,23 @@ class ProfilController extends Controller
             'email'  => ['required', 'email', Rule::unique('users')->ignore(Auth::id())],
             'phone'  => ['nullable', 'string', 'max:20'],
             'alamat' => ['nullable', 'string', 'max:500'],
+            'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 
         /** @var User $user */
         $user = Auth::user();
 
         if ($user) {
+            if ($request->hasFile('avatar')) {
+                if ($user->avatar && !str_starts_with($user->avatar, 'http')) {
+                    Storage::disk('public')->delete($user->avatar);
+                }
+                $user->avatar = $request->file('avatar')->store('avatars', 'public');
+            }
             $user->update($request->only('name', 'email', 'phone', 'alamat'));
+            if ($request->hasFile('avatar')) {
+                $user->save();
+            }
         }
 
         return back()->with('success', 'Profil berhasil diperbarui.');

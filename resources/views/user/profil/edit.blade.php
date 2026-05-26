@@ -20,23 +20,39 @@
                 <p class="text-xs font-black uppercase tracking-widest" style="color: #2f342e;">Informasi Akun</p>
             </div>
 
-            <form method="POST" action="{{ route('user.profil.update') }}" @submit="loading = true" class="p-4 space-y-4">
+            <form method="POST" action="{{ route('user.profil.update') }}" @submit="loading = true" class="p-4 space-y-4"
+                enctype="multipart/form-data">
                 @csrf
                 @method('PATCH')
 
                 {{-- Avatar --}}
                 <div class="flex items-center gap-4 pb-4" style="border-bottom: 1px solid rgba(101,94,68,0.08);">
-                    <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                        style="background: linear-gradient(135deg, #655e44, #4d4030);">
-                        <span class="text-2xl font-black"
-                            style="color: #F2E8C6;">{{ strtoupper(substr(Auth::user()->name, 0, 1)) }}</span>
-                    </div>
+                    <label for="avatar_input" class="cursor-pointer flex-shrink-0 group relative">
+                        @if (Auth::user()->avatar)
+                            <img src="{{ str_starts_with(Auth::user()->avatar, 'http') ? Auth::user()->avatar : asset('storage/' . Auth::user()->avatar) }}" class="w-14 h-14 rounded-2xl object-cover"
+                                alt="Avatar">
+                        @else
+                            <div class="w-14 h-14 rounded-2xl flex items-center justify-center"
+                                style="background: linear-gradient(135deg, #655e44, #4d4030);">
+                                <span class="text-2xl font-black" style="color: #F2E8C6;">
+                                    {{ strtoupper(substr(Auth::user()->name, 0, 1)) }}
+                                </span>
+                            </div>
+                        @endif
+                        <div class="absolute inset-0 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            style="background: rgba(0,0,0,0.45);">
+                            <span class="material-symbols-outlined text-white text-base">photo_camera</span>
+                        </div>
+                    </label>
+                    <input type="file" id="avatar_input" name="avatar" accept="image/*" class="hidden"
+                        onchange="previewAvatar(this)">
                     <div>
                         <p class="text-sm font-bold" style="color: #2f342e;">{{ Auth::user()->name }}</p>
                         <p class="text-xs" style="color: #7b776c;">{{ Auth::user()->email }}</p>
                         <p class="text-[10px] uppercase tracking-wider mt-0.5" style="color: #a09880;">
                             Bergabung {{ Auth::user()->created_at->format('d M Y') }}
                         </p>
+                        <p class="text-[10px] mt-1" style="color: #a09880;">Klik foto untuk mengganti</p>
                     </div>
                 </div>
 
@@ -148,7 +164,7 @@
                                 style="background: #faf9f5; border: 1px solid rgba(101,94,68,0.2); color: #2f342e;"
                                 onfocus="this.style.borderColor='#655e44'; this.style.boxShadow='0 0 0 2px rgba(101,94,68,0.15)';"
                                 onblur="this.style.borderColor='rgba(101,94,68,0.2)'; this.style.boxShadow='';">
-                             <button type="button" @click="showCurrent = !showCurrent"
+                            <button type="button" @click="showCurrent = !showCurrent"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 transition-colors hover:opacity-70"
                                 style="color: #7b776c;">
                                 <span class="material-symbols-outlined text-base"
@@ -275,5 +291,25 @@
         </div>
 
     </div>
+
+    @push('scripts')
+        <script>
+            function previewAvatar(input) {
+                if (input.files && input.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        const label = document.querySelector('label[for="avatar_input"]');
+                        // Replace existing img or div dengan img preview
+                        label.querySelector('img, div:not(.absolute)')?.remove();
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'w-14 h-14 rounded-2xl object-cover';
+                        label.insertBefore(img, label.firstChild);
+                    };
+                    reader.readAsDataURL(input.files[0]);
+                }
+            }
+        </script>
+    @endpush
 
 @endsection

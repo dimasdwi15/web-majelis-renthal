@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+
 
 class ProfileController extends Controller
 {
@@ -44,6 +47,35 @@ class ProfileController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Profil berhasil diperbarui.',
+            'data'    => $this->formatUser($user->fresh()),
+        ]);
+    }
+
+    public function updateAvatar(Request $request)
+    {
+        Log::info('Files:', ['files' => $request->allFiles()]);
+        Log::info('Content-Type:', ['ct' => $request->header('Content-Type')]);
+
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
+
+        $user = $request->user();
+
+        if ($user->avatar && !str_starts_with($user->avatar, 'http')) {
+            Storage::disk('public')->delete($user->avatar);
+        }
+
+        $file      = $request->file('avatar');
+        $filename  = uniqid('avatar_') . '.' . $file->getClientOriginalExtension();
+        $file->move(storage_path('app/public/avatars'), $filename);
+        $path = 'avatars/' . $filename;
+        
+        $user->update(['avatar' => $path]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Avatar berhasil diperbarui.',
             'data'    => $this->formatUser($user->fresh()),
         ]);
     }

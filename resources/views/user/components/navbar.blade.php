@@ -167,8 +167,10 @@
                             {{-- Empty state saat tidak ada notifikasi --}}
                             @if ($notifTerbaru->isEmpty())
                                 <div class="px-4 py-6 text-center">
-                                    <span class="material-symbols-outlined text-2xl block mb-1" style="color:#4a4540;">notifications_off</span>
-                                    <p class="text-[#655e44]/60 text-[10px] uppercase tracking-wider">Belum ada notifikasi</p>
+                                    <span class="material-symbols-outlined text-2xl block mb-1"
+                                        style="color:#4a4540;">notifications_off</span>
+                                    <p class="text-[#655e44]/60 text-[10px] uppercase tracking-wider">Belum ada notifikasi
+                                    </p>
                                 </div>
                             @endif
                         </div>
@@ -180,8 +182,17 @@
             <div x-data="{ accOpen: false }" class="relative">
                 <button @click="accOpen = !accOpen"
                     class="flex h-9 w-9 items-center justify-center text-[#F2E8C6]/70
-                           hover:text-[#F2E8C6] hover:bg-[#655e44]/40 rounded-lg transition-all duration-200">
-                    <span class="material-symbols-outlined text-2xl">account_circle</span>
+           hover:text-[#F2E8C6] hover:bg-[#655e44]/40 rounded-lg transition-all duration-200">
+                    @auth
+                        @if (Auth::user()->avatar)
+                            <img src="{{ str_starts_with(Auth::user()->avatar, 'http') ? Auth::user()->avatar : asset('storage/' . Auth::user()->avatar) }}"
+                                class="w-8 h-8 rounded-lg object-cover" alt="Avatar">
+                        @else
+                            <span class="material-symbols-outlined text-2xl">account_circle</span>
+                        @endif
+                    @else
+                        <span class="material-symbols-outlined text-2xl">account_circle</span>
+                    @endauth
                 </button>
 
                 <div x-show="accOpen" @click.away="accOpen = false"
@@ -274,7 +285,7 @@
                         </a>
 
                         @php
-                            $user    = Auth::user();
+                            $user = Auth::user();
                             $isAdmin = method_exists($user, 'hasRole')
                                 ? $user->hasAnyRole(['admin', 'super_admin'])
                                 : in_array($user->role ?? null, ['admin', 'super_admin']);
@@ -318,12 +329,9 @@
     </div>
 
     {{-- Mobile Menu --}}
-    <div x-show="mobileOpen" @click.away="mobileOpen = false"
-        x-transition:enter="transition ease-out duration-200"
-        x-transition:enter-start="opacity-0 -translate-y-2"
-        x-transition:enter-end="opacity-100 translate-y-0"
-        x-transition:leave="transition ease-in duration-150"
-        x-transition:leave-start="opacity-100 translate-y-0"
+    <div x-show="mobileOpen" @click.away="mobileOpen = false" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+        x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0"
         x-transition:leave-end="opacity-0 -translate-y-2"
         class="md:hidden absolute top-16 inset-x-0 bg-[#1a1412] border-b border-[#655e44]/30 z-40 shadow-xl">
 
@@ -336,7 +344,8 @@
                     window.location = url.toString();
                 ">
                 <div class="relative">
-                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2
+                    <span
+                        class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2
                                  text-[#655e44]/50 text-lg pointer-events-none">
                         search
                     </span>
@@ -402,7 +411,8 @@
                     <span class="material-symbols-outlined text-base">notifications</span>
                     Notifikasi
                     @if (isset($unreadNotif) && $unreadNotif > 0)
-                        <span class="ml-auto bg-red-500 text-white text-[9px] font-black
+                        <span
+                            class="ml-auto bg-red-500 text-white text-[9px] font-black
                              rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
                             {{ $unreadNotif }}
                         </span>
@@ -427,9 +437,8 @@
 {{-- ═══════════════════════════════════════════════════════════════════════
      TOAST CONTAINER — inject notifikasi real-time di sini
      ═══════════════════════════════════════════════════════════════════════ --}}
-<div id="notif-toast-container"
-     class="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2"
-     style="max-width: 360px; pointer-events: none;">
+<div id="notif-toast-container" class="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2"
+    style="max-width: 360px; pointer-events: none;">
 </div>
 
 {{-- ═══════════════════════════════════════════════════════════════════════
@@ -437,84 +446,84 @@
      Hanya dijalankan jika user sudah login.
      ═══════════════════════════════════════════════════════════════════════ --}}
 @auth
-<script>
-(function () {
-    'use strict';
+    <script>
+        (function() {
+            'use strict';
 
-    /**
-     * Tunggu sampai Echo siap (di-load dari bootstrap.js).
-     * Menggunakan interval ringan karena Echo di-bundle via Vite.
-     */
-    function initEcho() {
-        if (typeof window.Echo === 'undefined') {
-            setTimeout(initEcho, 200);
-            return;
-        }
-        startListening();
-    }
+            /**
+             * Tunggu sampai Echo siap (di-load dari bootstrap.js).
+             * Menggunakan interval ringan karena Echo di-bundle via Vite.
+             */
+            function initEcho() {
+                if (typeof window.Echo === 'undefined') {
+                    setTimeout(initEcho, 200);
+                    return;
+                }
+                startListening();
+            }
 
-    function startListening() {
-        const userId = {{ Auth::id() }};
+            function startListening() {
+                const userId = {{ Auth::id() }};
 
-        window.Echo
-            .private(`notifikasi.${userId}`)
-            .listen('.notifikasi.masuk', function (payload) {
-                updateBadgeBell();
-                tampilkanToast(payload);
-                injectKeDropdown(payload);
-            });
-    }
+                window.Echo
+                    .private(`notifikasi.${userId}`)
+                    .listen('.notifikasi.masuk', function(payload) {
+                        updateBadgeBell();
+                        tampilkanToast(payload);
+                        injectKeDropdown(payload);
+                    });
+            }
 
-    // ── 1. Update angka badge di icon bell ──────────────────────────────
-    function updateBadgeBell() {
-        let badge = document.getElementById('notif-badge-bell');
+            // ── 1. Update angka badge di icon bell ──────────────────────────────
+            function updateBadgeBell() {
+                let badge = document.getElementById('notif-badge-bell');
 
-        if (badge) {
-            // Badge sudah ada — increment
-            const current = parseInt(badge.textContent.replace('+', '')) || 0;
-            const next    = current + 1;
-            badge.textContent  = next > 9 ? '9+' : next;
-            badge.classList.add('animate-pulse');
-        } else {
-            // Badge belum ada (unread = 0 saat page load) — buat baru
-            const btn = document.getElementById('notif-bell-btn');
-            if (!btn) return;
+                if (badge) {
+                    // Badge sudah ada — increment
+                    const current = parseInt(badge.textContent.replace('+', '')) || 0;
+                    const next = current + 1;
+                    badge.textContent = next > 9 ? '9+' : next;
+                    badge.classList.add('animate-pulse');
+                } else {
+                    // Badge belum ada (unread = 0 saat page load) — buat baru
+                    const btn = document.getElementById('notif-bell-btn');
+                    if (!btn) return;
 
-            badge = document.createElement('span');
-            badge.id        = 'notif-badge-bell';
-            badge.className = [
-                'absolute -top-1 -right-1 min-w-[18px] h-[18px]',
-                'bg-red-500 text-white text-[9px] font-black',
-                'rounded-full flex items-center justify-center px-1',
-                'leading-none shadow pointer-events-none animate-pulse',
-            ].join(' ');
-            badge.textContent = '1';
-            btn.appendChild(badge);
-        }
-    }
+                    badge = document.createElement('span');
+                    badge.id = 'notif-badge-bell';
+                    badge.className = [
+                        'absolute -top-1 -right-1 min-w-[18px] h-[18px]',
+                        'bg-red-500 text-white text-[9px] font-black',
+                        'rounded-full flex items-center justify-center px-1',
+                        'leading-none shadow pointer-events-none animate-pulse',
+                    ].join(' ');
+                    badge.textContent = '1';
+                    btn.appendChild(badge);
+                }
+            }
 
-    // ── 2. Toast notifikasi di pojok kanan bawah ────────────────────────
-    function tampilkanToast(payload) {
-        const container = document.getElementById('notif-toast-container');
-        if (!container) return;
+            // ── 2. Toast notifikasi di pojok kanan bawah ────────────────────────
+            function tampilkanToast(payload) {
+                const container = document.getElementById('notif-toast-container');
+                if (!container) return;
 
-        const isDenda   = payload.tipe === 'denda';
-        const iconName  = isDenda ? 'gavel' : (payload.tipe === 'pembayaran' ? 'check_circle' : 'notifications');
-        const iconColor = isDenda ? '#ef4444' : '#a8956a';
-        const accentColor = isDenda ? 'border-red-500/40' : 'border-[#655e44]/40';
+                const isDenda = payload.tipe === 'denda';
+                const iconName = isDenda ? 'gavel' : (payload.tipe === 'pembayaran' ? 'check_circle' : 'notifications');
+                const iconColor = isDenda ? '#ef4444' : '#a8956a';
+                const accentColor = isDenda ? 'border-red-500/40' : 'border-[#655e44]/40';
 
-        const toast = document.createElement('div');
-        toast.style.pointerEvents = 'all';
-        toast.className = [
-            'flex items-start gap-3 px-4 py-3.5 rounded-xl shadow-2xl',
-            'bg-[#1a1210] border',
-            accentColor,
-            'text-[#F2E8C6]',
-            'transform translate-y-4 opacity-0',
-            'transition-all duration-300 ease-out',
-        ].join(' ');
+                const toast = document.createElement('div');
+                toast.style.pointerEvents = 'all';
+                toast.className = [
+                    'flex items-start gap-3 px-4 py-3.5 rounded-xl shadow-2xl',
+                    'bg-[#1a1210] border',
+                    accentColor,
+                    'text-[#F2E8C6]',
+                    'transform translate-y-4 opacity-0',
+                    'transition-all duration-300 ease-out',
+                ].join(' ');
 
-        toast.innerHTML = `
+                toast.innerHTML = `
             <span class="material-symbols-outlined text-base mt-0.5 flex-shrink-0"
                   style="color: ${iconColor}; font-size: 18px;">
                 ${iconName}
@@ -536,59 +545,59 @@
             </button>
         `;
 
-        // Tombol close
-        toast.querySelector('.notif-toast-close').addEventListener('click', function () {
-            dismissToast(toast);
-        });
+                // Tombol close
+                toast.querySelector('.notif-toast-close').addEventListener('click', function() {
+                    dismissToast(toast);
+                });
 
-        container.appendChild(toast);
+                container.appendChild(toast);
 
-        // Animasi masuk — frame berikutnya agar transisi berjalan
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                toast.classList.remove('translate-y-4', 'opacity-0');
-                toast.classList.add('translate-y-0', 'opacity-100');
-            });
-        });
+                // Animasi masuk — frame berikutnya agar transisi berjalan
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        toast.classList.remove('translate-y-4', 'opacity-0');
+                        toast.classList.add('translate-y-0', 'opacity-100');
+                    });
+                });
 
-        // Auto dismiss setelah 7 detik
-        const timer = setTimeout(() => dismissToast(toast), 7000);
+                // Auto dismiss setelah 7 detik
+                const timer = setTimeout(() => dismissToast(toast), 7000);
 
-        // Batalkan auto dismiss jika user hover
-        toast.addEventListener('mouseenter', () => clearTimeout(timer));
-        toast.addEventListener('mouseleave', () => {
-            setTimeout(() => dismissToast(toast), 2000);
-        });
-    }
+                // Batalkan auto dismiss jika user hover
+                toast.addEventListener('mouseenter', () => clearTimeout(timer));
+                toast.addEventListener('mouseleave', () => {
+                    setTimeout(() => dismissToast(toast), 2000);
+                });
+            }
 
-    function dismissToast(toast) {
-        toast.classList.remove('translate-y-0', 'opacity-100');
-        toast.classList.add('translate-y-4', 'opacity-0');
-        setTimeout(() => toast.remove(), 300);
-    }
+            function dismissToast(toast) {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }
 
-    // ── 3. Inject item baru ke dropdown list ────────────────────────────
-    function injectKeDropdown(payload) {
-        const list = document.getElementById('notif-dropdown-list');
-        if (!list) return;
+            // ── 3. Inject item baru ke dropdown list ────────────────────────────
+            function injectKeDropdown(payload) {
+                const list = document.getElementById('notif-dropdown-list');
+                if (!list) return;
 
-        const isDenda  = payload.tipe === 'denda';
-        const iconName = isDenda ? 'warning' : 'info';
-        const iconCls  = isDenda ? 'text-red-400' : 'text-[#a8956a]';
+                const isDenda = payload.tipe === 'denda';
+                const iconName = isDenda ? 'warning' : 'info';
+                const iconCls = isDenda ? 'text-red-400' : 'text-[#a8956a]';
 
-        // Hapus empty state jika ada
-        const emptyState = list.querySelector('[data-empty-state]');
-        if (emptyState) emptyState.remove();
+                // Hapus empty state jika ada
+                const emptyState = list.querySelector('[data-empty-state]');
+                if (emptyState) emptyState.remove();
 
-        const item = document.createElement('a');
-        item.href      = '{{ route('user.notifikasi.index') }}';
-        item.className = [
-            'flex items-start gap-3 px-4 py-3',
-            'bg-[#655e44]/10 hover:bg-[#655e44]/20',
-            'transition-colors border-b border-[#655e44]/10',
-        ].join(' ');
+                const item = document.createElement('a');
+                item.href = '{{ route('user.notifikasi.index') }}';
+                item.className = [
+                    'flex items-start gap-3 px-4 py-3',
+                    'bg-[#655e44]/10 hover:bg-[#655e44]/20',
+                    'transition-colors border-b border-[#655e44]/10',
+                ].join(' ');
 
-        item.innerHTML = `
+                item.innerHTML = `
             <span class="material-symbols-outlined text-base mt-0.5 flex-shrink-0 ${iconCls}"
                   style="font-size:16px;">
                 ${iconName}
@@ -605,30 +614,31 @@
             <span class="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 mt-1"></span>
         `;
 
-        // Prepend agar notif terbaru tampil di atas
-        list.prepend(item);
+                // Prepend agar notif terbaru tampil di atas
+                list.prepend(item);
 
-        // Batasi tampilan dropdown maksimal 4 item
-        const items = list.querySelectorAll('a');
-        if (items.length > 4) {
-            items[items.length - 1].remove();
-        }
-    }
+                // Batasi tampilan dropdown maksimal 4 item
+                const items = list.querySelectorAll('a');
+                if (items.length > 4) {
+                    items[items.length - 1].remove();
+                }
+            }
 
-    // ── Helper: sanitasi string agar aman dari XSS ──────────────────────
-    function escapeHtml(str) {
-        const div = document.createElement('div');
-        div.appendChild(document.createTextNode(String(str ?? '')));
-        return div.innerHTML;
-    }
+            // ── Helper: sanitasi string agar aman dari XSS ──────────────────────
+            function escapeHtml(str) {
+                const div = document.createElement('div');
+                div.appendChild(document.createTextNode(String(str ?? '')));
+                return div.innerHTML;
+            }
 
-    // ── Mulai inisialisasi ───────────────────────────────────────────────
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initEcho);
-    } else {
-        initEcho();
-    }
+            // ── Mulai inisialisasi ───────────────────────────────────────────────
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initEcho);
+            } else {
+                initEcho();
+            }
 
-})();
-</script>
+        })
+        ();
+    </script>
 @endauth

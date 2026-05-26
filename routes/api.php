@@ -90,6 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/',                [ProfileController::class, 'show']);
         Route::put('/',                [ProfileController::class, 'update']);
         Route::post('change-password', [ProfileController::class, 'changePassword']);
+        Route::post('avatar', [ProfileController::class, 'updateAvatar']);
     });
 
     // AI Recommendation — riwayat (hanya user login)
