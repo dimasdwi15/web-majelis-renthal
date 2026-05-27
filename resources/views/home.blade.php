@@ -20,6 +20,20 @@
     {{-- Alpine lewat Vite `resources/js/app.js` — jangan muat CDN lagi (store keranjang di-reset). --}}
 
     <style>
+        /* ── Global Scrollbar ── */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #faf9f5;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #4d462e;
+            border-radius: 3px;
+        }
+
         /* ── Custom Fonts ───────────────────────────────────────── */
         .font-bebas {
             font-family: 'Bebas Neue', cursive;
@@ -131,7 +145,8 @@
         <div class="absolute inset-0 z-0 overflow-hidden">
             <img id="hero-img" alt="Rugged Mountains"
                 class="w-full h-[115%] object-cover contrast-[1.08] brightness-[0.78] -top-[10%] absolute left-0"
-                src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2400&q=85&fit=crop" style="transform: translateY(0px)">
+                src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2400&q=85&fit=crop"
+                style="transform: translateY(0px)">
             {{-- Gradient overlays --}}
             <div class="absolute inset-0 bg-gradient-to-t from-[#251D1D]/80 via-[#251D1D]/20 to-transparent"></div>
             <div class="absolute inset-0 bg-gradient-to-r from-[#251D1D]/30 to-transparent"></div>

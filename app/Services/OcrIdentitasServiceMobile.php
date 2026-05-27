@@ -112,6 +112,17 @@ class OcrIdentitasServiceMobile
                 return $hasilAi;
             }
 
+            if ($hasilAi['valid'] === true && $hasilAi['confidence'] >= 50) {
+                return $this->hasil(
+                    valid: false,
+                    confidence: $hasilAi['confidence'],
+                    message: 'Identitas terdeteksi. Menunggu verifikasi manual admin.',
+                    requiresManual: true,
+                    jenisTerdeteksi: $hasilAi['jenis_terdeteksi'] ?? null,
+                    sesuaiJenis: $hasilAi['sesuai_jenis'] ?? false,
+                );
+            }
+
             // Jika AI ragu / salah deteksi
             // lanjut OCR fallback untuk memastikan
             Log::warning('[OCR AI] Confidence rendah, lanjut OCR fallback.', [
@@ -119,36 +130,28 @@ class OcrIdentitasServiceMobile
             ]);
         }
 
-        // ── 2. FALLBACK: OCR.space ────────────────────────────────────────
-        if (!config('services.ocr_space.enabled', true)) {
-            Log::warning('[OCR] OCR.space dinonaktifkan via config.');
-            return $this->fallbackManual(
-                $jenisIdentitas,
-                'OCR fallback tidak tersedia.'
+        // ── 2. Skip OCR.space — timeout 40s+ melebihi batas koneksi ──────
+        // Gunakan hasil AI jika ada, atau langsung manual review
+        Log::info('[OCR] OCR.space dilewati. Pakai hasil AI atau manual review.', [
+            'jenis'    => $jenisIdentitas,
+            'has_ai'   => $hasilAi !== null,
+        ]);
+
+        if ($hasilAi !== null) {
+            return $this->hasil(
+                valid: false,
+                confidence: $hasilAi['confidence'] ?? 0,
+                message: 'Identitas terdeteksi. Akan diverifikasi manual oleh admin.',
+                requiresManual: true,
+                jenisTerdeteksi: $hasilAi['jenis_terdeteksi'] ?? null,
+                sesuaiJenis: $hasilAi['sesuai_jenis'] ?? false,
             );
         }
 
-        $hasil = $this->ocrSpaceService->ekstrakTeks($file);
-
-        return match ($hasil['status']) {
-
-            'ok' => $this->gabungkanHasilAI(
-                $hasilAi,
-                $this->analisisTeks($hasil['teks'], $jenisIdentitas)
-            ),
-            'kosong' => $this->hasil(
-                valid: false,
-                confidence: 0,
-                message: 'Gambar tidak mengandung teks yang terbaca.',
-                requiresManual: false,
-                jenisTerdeteksi: null,
-                sesuaiJenis: false
-            ),
-            default  => $this->fallbackManual(
-                $jenisIdentitas,
-                'AI dan OCR gagal memproses identitas.'
-            ),
-        };
+        return $this->fallbackManual(
+            $jenisIdentitas,
+            'Identitas Anda akan diverifikasi manual oleh admin.'
+        );
     }
 
     /**

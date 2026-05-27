@@ -27,6 +27,20 @@
             display: none !important;
         }
 
+        /* ── Global Scrollbar ── */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #faf9f5;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #4d462e;
+            border-radius: 3px;
+        }
+
         /* ── Scrollbar ── */
         .modal-scroll::-webkit-scrollbar {
             width: 4px;

@@ -112,6 +112,14 @@ Route::get('/pesanan/{transaksi}/struk', [PesananController::class, 'struk'])
 Route::post('/midtrans/callback', [MidtransCallbackController::class, 'handle'])
     ->name('midtrans.callback');
 
+Route::get('/payment/finish', function () {
+    return response('<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#F5EFE6">
+        <h2 style="color:#3E2723">✅ Pembayaran Selesai</h2>
+        <p style="color:#5D4037">Silakan kembali ke aplikasi Majelis Rental.</p>
+        <script>setTimeout(()=>window.close(),2000);</script>
+    </body></html>');
+})->name('payment.finish');
+
 Route::post('/pesanan/{transaksi}/bayar-ulang', [PesananController::class, 'bayarUlang'])
     ->middleware('auth')
     ->name('user.pesanan.bayar-ulang');

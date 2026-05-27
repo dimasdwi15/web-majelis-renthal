@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\OtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -15,7 +14,6 @@ class GoogleAuthController extends Controller
 {
     public function __construct(
         protected FirebaseAuth $firebaseAuth,
-        protected OtpService $otpService,
     ) {}
 
     public function handleToken(Request $request)
@@ -59,42 +57,33 @@ class GoogleAuthController extends Controller
                         'redirect' => $this->redirectAfterLogin($user),
                     ]);
                 }
-
-                // Email belum terverifikasi → kirim OTP, arahkan ke halaman verifikasi
-                $this->otpService->sendOtpToEmail($email);
-
-                // Simpan flag di session agar EmailVerificationController tahu
-                // ini bukan pending_registration (user sudah ada di DB)
+                $user->markEmailAsVerified();
                 Auth::login($user, remember: true);
 
                 return response()->json([
                     'success'  => true,
-                    'redirect' => route('verification.notice'),
+                    'redirect' => $this->redirectAfterLogin($user),
                 ]);
             }
 
-            // ── 4. User baru — belum ada di database sama sekali ─────────────
-            //    Simpan ke session (pending_registration), kirim OTP.
-            //    Akun baru dibuat di DB hanya setelah OTP berhasil diverifikasi.
-            session([
-                'pending_registration' => [
-                    'name'      => $name,
-                    'email'     => $email,
-                    'phone'     => null,
-                    'alamat'    => null,
-                    'password'      => null,
-                    'auth_provider' => 'google',
-                    'google_id' => $googleId,
-                    'avatar'    => $avatar,
-                ],
+            // Buat akun langsung — email Google sudah terverifikasi, tidak perlu OTP
+            $user = User::create([
+                'name'              => $name,
+                'email'             => $email,
+                'google_id'         => $googleId,
+                'avatar'            => $avatar,
+                'auth_provider'     => 'google',
+                'email_verified_at' => now(),
+                'password'          => null,
             ]);
 
-            $this->otpService->sendOtpToEmail($email);
+            Auth::login($user, remember: true);
 
             return response()->json([
                 'success'  => true,
-                'redirect' => route('verification.notice'),
+                'redirect' => $this->redirectAfterLogin($user),
             ]);
+            
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,

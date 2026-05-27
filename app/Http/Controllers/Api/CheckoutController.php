@@ -488,6 +488,9 @@ class CheckoutController extends Controller
                         'unit'       => 'hours',
                         'duration'   => 24,
                     ],
+                    'callbacks' => [
+                        'finish' => config('app.url') . '/payment/finish',
+                    ],
                 ];
 
                 $snapToken = Snap::getSnapToken($params);
@@ -729,11 +732,6 @@ class CheckoutController extends Controller
     }
 
     // ── Private: generate Midtrans snap token ─────────────────────────────
-    //
-    // FIX #4: gunakan nomor_transaksi ASLI (bukan + suffix time) sebagai
-    // order_id agar MidtransCallbackController bisa lookup dengan benar:
-    //   Transaksi::where('nomor_transaksi', $orderId)->first()
-    //
     private function _generateSnapToken(Transaksi $transaksi): string
     {
         // Cek apakah order_id ini pernah dipakai di Midtrans sebelumnya.
@@ -755,6 +753,9 @@ class CheckoutController extends Controller
                     'email'      => $transaksi->user->email,
                     'phone'      => $transaksi->user->phone ?? '',
                 ],
+                'callbacks' => [
+                    'finish' => config('app.url') . '/payment/finish',
+                ],
             ];
 
             return Snap::getSnapToken($params);
@@ -775,6 +776,9 @@ class CheckoutController extends Controller
                     'first_name' => $transaksi->user->name,
                     'email'      => $transaksi->user->email,
                     'phone'      => $transaksi->user->phone ?? '',
+                ],
+                'callbacks' => [
+                    'finish' => config('app.url') . '/payment/finish',
                 ],
             ];
 
